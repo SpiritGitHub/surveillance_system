@@ -10,6 +10,7 @@ import sys
 logging.basicConfig(level=logging.CRITICAL)
 
 from src.pipeline.process_video import process_video
+from src.pipeline.global_matching import run_global_matching
 from src.utils.trajectory_validator import TrajectoryValidator
 
 
@@ -42,6 +43,13 @@ def main(force_reprocess=False):
         print("Toutes les vidéos ont déjà été traitées.")
         print("Utilisez --force pour retraiter quand même.")
         print("=" * 70)
+        
+        # Même si tout est à jour, on peut vouloir lancer le matching global
+        # si on a ajouté de nouvelles vidéos ou si on veut re-matcher
+        # Mais pour l'instant, on le lance seulement si on a traité quelque chose
+        # ou si on force ? 
+        # Disons qu'on le lance toujours à la fin si on a des trajectoires.
+        run_global_matching()
         return
     
     print("\n" + "=" * 70)
@@ -107,6 +115,9 @@ def main(force_reprocess=False):
         print("\n🔍 Vérification finale...")
         final_scan = validator.scan_all_videos()
         print(f"✅ {final_scan['summary']['complete']}/{final_scan['summary']['total']} vidéos complètes")
+        
+        # 7. GLOBAL MATCHING
+        run_global_matching()
 
 
 if __name__ == "__main__":

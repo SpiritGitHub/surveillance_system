@@ -10,6 +10,9 @@ from src.detection.yolo_detector import YOLODetector
 from src.tracking.deepsort_tracker import DeepSortTracker
 from src.metadata.metadata_manager import MetadataManager
 from src.utils.orientation import OrientationDetector
+from src.zones.zone_manager import ZoneManager
+from src.alerts.alert_manager import AlertManager
+from src.reid.feature_extractor import FeatureExtractor
 
 
 class VideoProcessor:
@@ -28,6 +31,25 @@ class VideoProcessor:
         self.detector = YOLODetector(model_path, conf_threshold)
         self.metadata_manager = MetadataManager()
         self.orientation_detector = OrientationDetector()
+        self.zone_manager = ZoneManager()
+        self.alert_manager = AlertManager()
+        
+        # Charger les offsets
+        self.offsets = {}
+        try:
+            with open("data/camera_offsets_durree.json", "r") as f:
+                self.offsets = json.load(f)
+            print(f"[INFO] Chargé {len(self.offsets)} offsets de synchronisation")
+        except Exception as e:
+            print(f"[WARNING] Pas de fichier d'offsets trouvé: {e}")
+
+        try:
+            self.feature_extractor = FeatureExtractor()
+            self.reid_enabled = True
+        except Exception as e:
+            print(f"[WARNING] ReID disabled: {e}")
+            self.reid_enabled = False
+            
         self.show_video = show_video
     
     def process(self, video_path: str):
@@ -58,6 +80,20 @@ class VideoProcessor:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
         print(f"[INFO] {total_frames} frames @ {fps:.1f} fps ({width}x{height})")
+        
+        # Récupérer l'offset de synchronisation
+        # Le nom dans le JSON semble être le nom du fichier sans extension mais avec _full ?
+        # Ou juste le nom de la caméra ?
+        # Dans le fichier exemple: "CAMERA_DEBUT_COULOIR_DROIT_full"
+        # Mon video_id est probablement "CAMERA_DEBUT_COULOIR_DROIT"
+        # On va essayer de trouver une correspondance
+        sync_offset = 0.0
+        for key, val in self.offsets.items():
+            if video_id in key:
+                sync_offset = float(val)
+                break
+        
+        print(f"[INFO] Offset de synchronisation: {sync_offset:.2f} sec")
         
         # ============================================================
         # PHASE 1: DÉTECTION ORIENTATION (pas de sauvegarde)
@@ -92,7 +128,7 @@ class VideoProcessor:
         
         # Sauvegarde
         print(f"\n[SAVE] Sauvegarde des trajectoires...")
-        self._save_trajectories(video_id, tracker, traj_path, stats, rotation_k)
+        self._save_trajectories(video_id, tracker, traj_path, stats, rotation_k, sync_offset)
         
         print(f"\n[VIDEO] ✓ Traitement terminé")
         print('='*70)
@@ -138,6 +174,38 @@ class VideoProcessor:
                     # Tracking DeepSORT (sauvegarde dans le tracker)
                     tracks = tracker.update(detections, frame)
                     total_detections += len(tracks)
+
+                    # Zone & Alert Check
+                    current_time = frame_id / fps
+                    for trk in tracks:
+                        tid = trk["track_id"]
+                        x1, y1, x2, y2 = trk["bbox"]
+                        cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
+                        
+                        # Check zones
+                        violations = self.zone_manager.check_point_all_zones(cx, cy, video_id) # Returns list of zone_ids
+                        
+                        # Update alerts
+                        self.alert_manager.update(tid, violations, current_time, video_id, frame_id)
+                        
+                        # Add alert info to track for visualization
+                        trk["alerts"] = self.alert_manager.get_active_alerts(tid, current_time)
+
+                        # ReID: Extract embedding periodically (e.g., every 30 frames ~ 1 sec)
+                        if self.reid_enabled and frame_id % 30 == 0:
+                            # Extract crop
+                            h, w, _ = frame.shape
+                            # Ensure bbox is within bounds
+                            bx1, by1, bx2, by2 = [max(0, val) for val in [x1, y1, x2, y2]]
+                            bx2, by2 = min(w, bx2), min(h, by2)
+                            
+                            if bx2 > bx1 and by2 > by1:
+                                crop = frame[by1:by2, bx1:bx2]
+                                embedding = self.feature_extractor.extract(crop)
+                                # Store embedding in track (convert to list for JSON serialization)
+                                if "embeddings" not in trk:
+                                    trk["embeddings"] = []
+                                trk["embeddings"].append(embedding.tolist())
                     
                     # Mettre à jour description avec nombre de tracks
                     if frame_id % 10 == 0:
@@ -171,9 +239,23 @@ class VideoProcessor:
         }
     
     def _show_frame(self, frame, tracks, frame_id, video_id):
-        """Affiche la frame avec les tracks"""
+        """Affiche la frame avec les tracks et les zones"""
         try:
             display = frame.copy()
+            
+            # Dessiner les zones
+            zones = self.zone_manager.get_zones_for_camera(video_id)
+            for zone in zones.values():
+                if not zone.get("active", True):
+                    continue
+                
+                pts = zone["_polygon_obj"].exterior.coords
+                pts_int = np.array(pts, np.int32).reshape((-1, 1, 2))
+                cv2.polylines(display, [pts_int], True, (0, 0, 255), 2)
+                
+                # Nom de la zone
+                x, y = int(pts[0][0]), int(pts[0][1])
+                cv2.putText(display, zone["name"], (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
             
             # Info en haut
             cv2.putText(
@@ -207,6 +289,19 @@ class VideoProcessor:
                     color,
                     2
                 )
+
+                # Afficher alerte si présent
+                if "alerts" in trk and trk["alerts"]:
+                    alert_text = "ALERT!"
+                    cv2.putText(
+                        display,
+                        alert_text,
+                        (x1, y1 - 25),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (0, 0, 255),
+                        2
+                    )
             
             # Redimensionner si besoin
             h, w = display.shape[:2]
@@ -219,13 +314,21 @@ class VideoProcessor:
         except Exception as e:
             pass
     
-    def _save_trajectories(self, video_id, tracker, traj_path, stats, rotation_k):
+    def _save_trajectories(self, video_id, tracker, traj_path, stats, rotation_k, sync_offset=0.0):
         """Sauvegarde finale des trajectoires"""
         try:
             trajectories = list(tracker.get_trajectories().values())
             
+            # Appliquer l'offset de synchronisation aux timestamps
+            for traj in trajectories:
+                for frame_data in traj["frames"]:
+                    # t est le timestamp relatif au début de la vidéo
+                    # on ajoute l'offset pour avoir le temps synchronisé
+                    frame_data["t_sync"] = frame_data["t"] + sync_offset
+            
             data = {
                 "video_id": video_id,
+                "sync_offset": sync_offset,
                 "rotation_applied": rotation_k * 90,
                 "stats": stats,
                 "trajectories": trajectories

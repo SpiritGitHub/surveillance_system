@@ -8,27 +8,6 @@ import logging
 from pathlib import Path
 from ultralytics import YOLO
 
-# ==========================================================
-# CONFIG
-# ==========================================================
-
-# Classes utiles (COCO)
-USEFUL_CLASSES = {
-    0: "person",
-    24: "backpack",
-    26: "handbag",
-    28: "suitcase",
-    39: "bottle",
-    41: "cup",
-    63: "laptop",
-    67: "cell phone"
-}
-
-logger = logging.getLogger("YOLODetector")
-
-
-# YOLO DETECTOR
-
 class YOLODetector:
     def __init__(
         self,
@@ -187,20 +166,6 @@ class YOLODetector:
 
         detections = []
 
-        if results.boxes is None:
-            return detections
-
-        for box in results.boxes:
-            cls_id = int(box.cls[0])
-
-            # Tracking uniquement des personnes
-            if cls_id != 0:
-                continue
-
-            x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-            detections.append({
-                "bbox": [x1, y1, x2, y2],
                 "confidence": float(box.conf[0])
             })
 
