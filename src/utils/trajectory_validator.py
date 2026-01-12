@@ -34,7 +34,7 @@ class TrajectoryValidator:
             list: Liste de vidéos uniques
         """
         video_dir = Path(video_dir)
-        all_videos = list(video_dir.glob("*.mp4"))
+        all_videos = [p for p in video_dir.iterdir() if p.is_file() and p.suffix.lower() == ".mp4"]
         
         # Dédupliquer par stem (nom sans extension, en minuscules)
         seen_stems = {}

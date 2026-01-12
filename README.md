@@ -65,11 +65,26 @@ Le système va :
 2.  Détecter, suivre et vérifier les intrusions.
 3.  À la fin, relier les personnes entre les caméras (Global Matching).
 
+💡 Important : même si **0 vidéo** est à retraiter (tout est déjà traité), `main.py` exécute quand même la fin de chaîne (global matching, rapport, exports) tant que `data/trajectories/` existe.
+
 ### Étape 5 : Résultats
 
-- **Intrusions** : Consultez `outputs/events.csv`.
-- **Trajectoires complètes** : Dossier `data/trajectories/`.
+- **Trajectoires complètes** : `data/trajectories/*.json` (contient aussi les embeddings ReID des personnes).
+- **Embeddings exportés** : `data/embeddings/<VIDEO_ID>/*.npy` + `data/embeddings/embeddings_index_<RUN_ID>.csv`.
+- **Événements (intrusions)** : `outputs/events/events_<RUN_ID>.jsonl`.
+- **Rapport examinateur** : `outputs/reports/run_report_<RUN_ID>.json` + `outputs/reports/latest.json`.
+- **Exports “database”** :
+	- `database/personnes.csv`
+	- `database/evenements.csv`
+	- `database/classes.csv`
+
+#### Pourquoi certains fichiers peuvent être “vides” ?
+
+- `outputs/events/events_<RUN_ID>.jsonl` et `database/evenements.csv` peuvent être vides si **aucune intrusion** n’a été détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone, etc.).
+- `database/classes.csv` est généré à partir des trajectoires (même si 0 vidéo retraitée).
 
 ## 📚 Documentation Détaillée
 
 Pour comprendre exactement comment fonctionne chaque fichier du code, consultez le fichier **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)**.
+
+Pour une documentation technique exhaustive (structure + APIs + formats + flux end-to-end), voir **[TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)**.

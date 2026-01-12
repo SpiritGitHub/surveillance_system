@@ -11,7 +11,7 @@ from src.reid.matcher import ReIDMatcher
 
 logger = logging.getLogger("GlobalMatching")
 
-def run_global_matching(data_dir="data/trajectories", threshold=0.3):
+def run_global_matching(data_dir="data/trajectories", threshold=0.5, max_embeddings_per_track=5):
     """
     Load all trajectories, match them using ReID, and update JSONs with global_id.
     """
@@ -24,7 +24,14 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.3):
     
     if not json_files:
         print("❌ No trajectory files found.")
-        return
+        return {
+            "trajectory_files": 0,
+            "tracks_with_embeddings": 0,
+            "unique_identities": 0,
+            "files_updated": 0,
+            "threshold": threshold,
+            "max_embeddings_per_track": max_embeddings_per_track,
+        }
 
     matcher = ReIDMatcher(threshold=threshold)
     
@@ -43,13 +50,15 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.3):
             # For now, we process file by file.
             
             for track in data["trajectories"]:
+                class_name = track.get("class_name")
+                # By default, we only do ReID global matching for persons.
+                # Backward compatibility: if class_name is missing, assume person.
+                if class_name is not None and class_name != "person":
+                    continue
                 if "embeddings" in track and track["embeddings"]:
-                    # Use the first embedding for matching (or average?)
-                    # Let's use the first one for simplicity, or iterate
-                    # track["embeddings"] is a list of lists
                     embeddings = track["embeddings"]
-                    # timestamp of first appearance
-                    first_frame = track["frames"][0]["t"]
+                    # Prefer synchronized timestamp if present
+                    first_frame = track["frames"][0].get("t_sync", track["frames"][0].get("t", 0.0))
                     
                     all_tracks.append({
                         "video_id": video_id,
@@ -75,11 +84,10 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.3):
     files_to_save = {}
     
     for track in tqdm(all_tracks, desc="Matching"):
-        # Use average embedding for better robustness?
-        # Or just match the first one?
-        # Let's try matching the first embedding
+        # Use mean embedding over first N samples to reduce noise
         import numpy as np
-        emb = np.array(track["embeddings"][0])
+        embs = track["embeddings"][:max_embeddings_per_track]
+        emb = np.mean(np.array(embs, dtype=np.float32), axis=0)
         
         global_id = matcher.match_track(emb, track["timestamp"])
         
@@ -102,7 +110,17 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.3):
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
             
-    print(f"✓ Global matching complete. Total unique identities: {len(matcher.global_tracks)}")
+    unique_identities = len(matcher.global_tracks)
+    print(f"✓ Global matching complete. Total unique identities: {unique_identities}")
+
+    return {
+        "trajectory_files": len(json_files),
+        "tracks_with_embeddings": len(all_tracks),
+        "unique_identities": unique_identities,
+        "files_updated": len(files_to_save),
+        "threshold": threshold,
+        "max_embeddings_per_track": max_embeddings_per_track,
+    }
 
 if __name__ == "__main__":
     run_global_matching()

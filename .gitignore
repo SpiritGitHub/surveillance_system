@@ -8,7 +8,6 @@ outputs/
 .idea/  
 .vscode/
 *.log   
-data/videos/
 .pytest_cache/
 .zenflow/
 .zencoder/
@@ -17,3 +16,5 @@ configs/
 oauth.txt
 .vscode/
 .comments
+doc/
+datas/

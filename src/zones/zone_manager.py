@@ -19,6 +19,22 @@ class ZoneManager:
         # Charger les zones si le fichier existe
         if self.zones_file.exists():
             self.load_zones()
+    @staticmethod
+    def _normalize_camera_id(camera_id: str | None) -> str | None:
+        if camera_id is None:
+            return None
+        cam = str(camera_id).strip()
+        cam_up = cam.upper()
+        if cam_up.startswith("CAMERA_"):
+            cam = cam[len("CAMERA_") :]
+        return cam
+
+    @classmethod
+    def _camera_matches(cls, zone_camera_id: str | None, query_camera_id: str | None) -> bool:
+        if query_camera_id is None:
+            return True
+        return cls._normalize_camera_id(zone_camera_id) == cls._normalize_camera_id(query_camera_id)
+
 
         
 
@@ -107,19 +123,50 @@ class ZoneManager:
         
         for zone_id, zone in self.zones.items():
             # Filtrer par caméra si spécifié
-            if camera_id and zone["camera_id"] != camera_id:
+            if camera_id and not self._camera_matches(zone.get("camera_id"), camera_id):
                 continue
             
             if self.is_point_in_zone(x, y, zone_id):
                 violations.append(zone_id)
         
         return violations
+
+    def check_bbox_all_zones(self, bbox: List[int], camera_id: str = None) -> List[str]:
+        """Check which zones intersect a bbox.
+
+        Args:
+            bbox: [x1, y1, x2, y2]
+            camera_id: optional camera filter
+
+        Returns:
+            List of zone_ids intersecting the bbox.
+        """
+        try:
+            x1, y1, x2, y2 = bbox
+            rect = Polygon([(x1, y1), (x2, y1), (x2, y2), (x1, y2)])
+        except Exception:
+            return []
+
+        violations = []
+        for zone_id, zone in self.zones.items():
+            if camera_id and not self._camera_matches(zone.get("camera_id"), camera_id):
+                continue
+            if not zone.get("active", True):
+                continue
+            poly = zone.get("_polygon_obj")
+            if poly is None:
+                poly = Polygon(zone["polygon"])
+            # Use intersects so edge-touch counts as intrusion
+            if poly.intersects(rect):
+                violations.append(zone_id)
+
+        return violations
     
     def get_zones_for_camera(self, camera_id: str) -> Dict:
         """Retourne toutes les zones d'une caméra"""
         return {
             zid: zone for zid, zone in self.zones.items() 
-            if zone["camera_id"] == camera_id
+            if self._camera_matches(zone.get("camera_id"), camera_id)
         }
     
     def save_zones(self):
