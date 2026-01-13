@@ -22,10 +22,8 @@ USEFUL_CLASSES = {
     2: "car",
     3: "motorcycle",
     5: "bus",
-    7: "truck",
     24: "backpack",
     26: "handbag",
-    28: "suitcase",
 }
 
 class YOLODetector:

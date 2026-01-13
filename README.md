@@ -9,8 +9,8 @@ Ce système transforme un réseau de caméras (ou smartphones) en un système de
 Le système détecte et identifie automatiquement :
 
 - 👤 **Personnes**
-- 🚗 **Véhicules** : Voitures, motos, bus, camions
-- 🎒 **Bagages** : Sacs à dos, sacs à main, valises
+- 🚗 **Véhicules** : Voitures, motos, bus, 
+- 🎒 **Bagages** : Sacs à dos, sacs à main
 
 ### 2. Suivi et Trajectoires
 
