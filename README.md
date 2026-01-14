@@ -83,8 +83,3 @@ Important : même si aucune vidéo n'est à retraiter (déjà traité), `main.py
 - `outputs/events/events_<RUN_ID>.jsonl` et `database/evenements.csv` peuvent être vides si **aucune intrusion** n’a été détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone, etc.).
 - `database/classes.csv` est généré à partir des trajectoires (même si 0 vidéo retraitée).
 
-## Documentation
-
-Pour une documentation technique exhaustive (structure, formats, flux end-to-end), voir [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md).
-
-Pour une trame de présentation (oral) et une lecture orientée « projet », voir [doc/PRESENTATION.md](doc/PRESENTATION.md).
