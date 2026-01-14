@@ -29,7 +29,7 @@ def _run_dashboard(data_dir: str = "data") -> None:
     from src.interface.dashboard_v import DashboardV
 
     print("\n" + "=" * 70)
-    print("📺 Lancement du Dashboard V")
+    print("Lancement du Dashboard V")
     print("=" * 70)
     print("Chargement de l'interface synchronisée...")
 
@@ -60,7 +60,7 @@ def main_v(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     print("\n" + "=" * 70)
-    print("🚀 SURVEILLANCE SYSTEM - VERSION AVANCÉE (V)")
+    print("SURVEILLANCE SYSTEM - VERSION AVANCÉE (V)")
     print("=" * 70)
 
     if not args.dashboard_only:

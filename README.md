@@ -1,34 +1,34 @@
-# 🕵️ Surveillance System - Détection et Tracking Intelligent
+# Surveillance System — Détection, suivi et analyse multi-caméras
 
-Ce système transforme un réseau de caméras (ou smartphones) en un système de surveillance intelligent capable de suivre des individus et véhicules à travers plusieurs vues.
+Ce projet transforme des vidéos multi-caméras en données structurées (trajectoires, identités globales, événements) afin de faciliter l'analyse et l'audit (qui est passé où, quand, et pendant combien de temps).
 
-## ✨ Fonctionnalités Clés
+## Fonctionnalités
 
-### 1. Détection Multi-Objets
+### 1) Détection multi-objets
 
-Le système détecte et identifie automatiquement :
+Le système détecte automatiquement :
 
-- 👤 **Personnes**
-- 🚗 **Véhicules** : Voitures, motos, bus, 
-- 🎒 **Bagages** : Sacs à dos, sacs à main
+- Personnes
+- Véhicules (voitures, motos, bus)
+- Bagages (sacs à dos, sacs à main)
 
-### 2. Suivi et Trajectoires
+### 2) Suivi (tracking) et trajectoires
 
-- Suit chaque objet individuellement dans la vidéo.
-- Enregistre sa trajectoire précise (position, heure).
-- **Synchronisation Temporelle** : Utilise un fichier de configuration pour aligner temporellement toutes les vidéos, permettant de savoir exactement ce qui se passe sur toutes les caméras au même instant.
+- Suivi de chaque objet dans une vidéo (identifiants locaux + positions dans le temps).
+- Enregistrement de trajectoires exploitables (JSON/CSV).
+- Synchronisation temporelle via offsets pour aligner plusieurs caméras sur un temps commun.
 
-### 3. Sécurité et Alertes
+### 3) Zones et alertes
 
-- **Zones Interdites** : Dessinez des zones sur vos vidéos.
-- **Détection d'Intrusion** : Recevez une alerte si une personne reste trop longtemps dans une zone sensible.
+- Définition de zones interdites (polygones).
+- Détection d'intrusion selon une logique immédiate ou à seuil de durée.
 
-### 4. Ré-identification (Re-ID)
+### 4) Ré-identification (Re-ID)
 
-- Reconnaît la même personne lorsqu'elle passe d'une caméra à une autre.
-- Attribue un **Identifiant Unique Global** à chaque individu sur l'ensemble du réseau.
+- Regroupement des trajectoires d'une même personne entre caméras.
+- Attribution d'un identifiant global (global_id).
 
-## 🚀 Comment l'utiliser ?
+## Utilisation
 
 ### Étape 1 : Installation
 
@@ -65,7 +65,7 @@ Le système va :
 2.  Détecter, suivre et vérifier les intrusions.
 3.  À la fin, relier les personnes entre les caméras (Global Matching).
 
-💡 Important : même si **0 vidéo** est à retraiter (tout est déjà traité), `main.py` exécute quand même la fin de chaîne (global matching, rapport, exports) tant que `data/trajectories/` existe.
+Important : même si aucune vidéo n'est à retraiter (déjà traité), `main.py` exécute tout de même la fin de chaîne (matching global, rapport, exports) tant que `data/trajectories/` existe.
 
 ### Étape 5 : Résultats
 
@@ -83,8 +83,8 @@ Le système va :
 - `outputs/events/events_<RUN_ID>.jsonl` et `database/evenements.csv` peuvent être vides si **aucune intrusion** n’a été détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone, etc.).
 - `database/classes.csv` est généré à partir des trajectoires (même si 0 vidéo retraitée).
 
-## 📚 Documentation Détaillée
+## Documentation
 
-Pour comprendre exactement comment fonctionne chaque fichier du code, consultez le fichier **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)**.
+Pour une documentation technique exhaustive (structure, formats, flux end-to-end), voir [doc/TECHNICAL_GUIDE.md](doc/TECHNICAL_GUIDE.md).
 
-Pour une documentation technique exhaustive (structure + APIs + formats + flux end-to-end), voir **[TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)**.
+Pour une trame de présentation (oral) et une lecture orientée « projet », voir [doc/PRESENTATION.md](doc/PRESENTATION.md).

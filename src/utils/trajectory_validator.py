@@ -251,25 +251,25 @@ class TrajectoryValidator:
         scan = self.scan_all_videos(video_dir)
         
         print("\n" + "=" * 70)
-        print("📊 RAPPORT DE VÉRIFICATION")
+        print("RAPPORT DE VÉRIFICATION")
         print("=" * 70)
         
         summary = scan["summary"]
-        print(f"\n✅ Complètes:   {summary['complete']}/{summary['total']}")
-        print(f"❌ Manquantes:  {summary['missing']}/{summary['total']}")
-        print(f"⚠️  Incomplètes: {summary['incomplete']}/{summary['total']}")
-        print(f"🔴 Corrompues:  {summary['corrupted']}/{summary['total']}")
-        print(f"\n📝 À traiter:   {summary['needs_processing']}/{summary['total']}")
+        print(f"\nComplètes:   {summary['complete']}/{summary['total']}")
+        print(f"Manquantes:  {summary['missing']}/{summary['total']}")
+        print(f"Incomplètes: {summary['incomplete']}/{summary['total']}")
+        print(f"Corrompues:  {summary['corrupted']}/{summary['total']}")
+        print(f"\nÀ traiter:   {summary['needs_processing']}/{summary['total']}")
         
         # Détails des complètes
         if scan["complete"]:
             print("\n" + "-" * 70)
-            print("✅ VIDÉOS COMPLÈTES (ignorées)")
+            print("VIDÉOS COMPLÈTES (ignorées)")
             print("-" * 70)
             for item in scan["complete"][:5]:  # Montrer seulement les 5 premières
                 info = item["info"]
-                print(f"  ✓ {item['video'].name}")
-                print(f"    → {info['num_trajectories']} trajectoires, {info['frames_processed']} frames, {info['file_size_kb']:.1f} KB")
+                print(f"  - {item['video'].name}")
+                print(f"    {info['num_trajectories']} trajectoires, {info['frames_processed']} frames, {info['file_size_kb']:.1f} KB")
             
             if len(scan["complete"]) > 5:
                 print(f"  ... et {len(scan['complete']) - 5} autres")
@@ -277,29 +277,29 @@ class TrajectoryValidator:
         # Détails des manquantes
         if scan["missing"]:
             print("\n" + "-" * 70)
-            print("❌ VIDÉOS MANQUANTES (à traiter)")
+            print("VIDÉOS MANQUANTES (à traiter)")
             print("-" * 70)
             for item in scan["missing"]:
-                print(f"  ✗ {item['video'].name}")
-                print(f"    → {item['info']['reason']}")
+                print(f"  - {item['video'].name}")
+                print(f"    Raison: {item['info']['reason']}")
         
         # Détails des incomplètes
         if scan["incomplete"]:
             print("\n" + "-" * 70)
-            print("⚠️  VIDÉOS INCOMPLÈTES (à retraiter)")
+            print("VIDÉOS INCOMPLÈTES (à retraiter)")
             print("-" * 70)
             for item in scan["incomplete"]:
-                print(f"  ! {item['video'].name}")
-                print(f"    → {item['info']['reason']}")
+                print(f"  - {item['video'].name}")
+                print(f"    Raison: {item['info']['reason']}")
         
         # Détails des corrompues
         if scan["corrupted"]:
             print("\n" + "-" * 70)
-            print("🔴 VIDÉOS CORROMPUES (à retraiter)")
+            print("VIDÉOS CORROMPUES (à retraiter)")
             print("-" * 70)
             for item in scan["corrupted"]:
-                print(f"  ✗ {item['video'].name}")
-                print(f"    → {item['info']['reason']}")
+                print(f"  - {item['video'].name}")
+                print(f"    Raison: {item['info']['reason']}")
         
         print("\n" + "=" * 70)
         

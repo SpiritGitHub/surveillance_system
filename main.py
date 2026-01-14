@@ -58,7 +58,7 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
     # 1. VÉRIFICATION PRÉALABLE
     validator = TrajectoryValidator()
     
-    print("\n🔍 Vérification des trajectoires existantes...")
+    print("\nVérification des trajectoires existantes...")
     scan = validator.print_scan_report()
     
     # Run/session artifacts (always created so downstream steps can run end-to-end)
@@ -80,7 +80,7 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
 
     # 2. DÉTERMINER QUOI TRAITER
     if force_reprocess:
-        print("\n⚠️  MODE FORCE: Toutes les vidéos seront retraitées")
+        print("\nAVERTISSEMENT: MODE FORCE — toutes les vidéos seront retraitées")
         video_dir = Path("data/videos")
         candidates = [p for p in video_dir.iterdir() if p.is_file() and p.suffix.lower() == ".mp4"]
 
@@ -97,7 +97,7 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
     
     if not videos_to_process:
         print("\n" + "=" * 70)
-        print("🎉 TOUT EST À JOUR !")
+        print("TOUT EST À JOUR")
         print("=" * 70)
         print("Toutes les vidéos ont déjà été traitées.")
         print("Utilisez --force pour retraiter quand même.")
@@ -111,7 +111,7 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
         videos_to_process = []
     
     print("\n" + "=" * 70)
-    print(f"🎬 {len(videos_to_process)} vidéo(s) à traiter")
+    print(f"{len(videos_to_process)} vidéo(s) à traiter")
     print("=" * 70)
     
     # 3. CONFIRMATION
@@ -120,8 +120,8 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
         and len(videos_to_process) > 0
         and len(videos_to_process) < scan["summary"]["total"]
     ):
-        print(f"\nℹ️  {scan['summary']['complete']} vidéo(s) déjà traitée(s) seront ignorées")
-        response = input("\n▶️  Continuer ? (o/n) [o]: ").lower()
+        print(f"\nINFO: {scan['summary']['complete']} vidéo(s) déjà traitée(s) seront ignorées")
+        response = input("\nContinuer ? (o/n) [o]: ").lower()
         if response and response not in ['o', 'oui', 'y', 'yes']:
             print("Annulé.")
             return
@@ -139,7 +139,7 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
 
     for video_path in tqdm(videos_to_process, desc="Traitement global", unit="vidéo", ncols=100):
         print(f"\n{'='*70}")
-        print(f"📹 {video_path.name}")
+        print(f"Vidéo: {video_path.name}")
         print('='*70)
         
         start = time.time()
@@ -151,39 +151,39 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
             total_time += elapsed
             
             if stats:
-                print(f"\n✓ Succès en {elapsed:.1f}s - {stats['unique_persons']} personne(s)")
+                print(f"\nOK: terminé en {elapsed:.1f}s — {stats['unique_persons']} personne(s)")
                 per_video_stats[video_path.stem] = stats
                 success += 1
             
         except KeyboardInterrupt:
-            print("\n⏸️  Interruption utilisateur")
+            print("\nInterruption utilisateur")
             break
         except Exception as e:
             logger.exception("Erreur traitement vidéo: %s", video_path)
-            print(f"\n❌ Erreur: {str(e)[:200]} (détails dans les logs)")
+            print(f"\nERREUR: {str(e)[:200]} (détails dans les logs)")
             errors += 1
     
     # 5. RÉSUMÉ FINAL
     print("\n" + "=" * 70)
-    print("📊 RÉSUMÉ FINAL")
+    print("RÉSUMÉ FINAL")
     print("=" * 70)
-    print(f"✅ Succès: {success}/{len(videos_to_process)}")
-    print(f"❌ Erreurs: {errors}/{len(videos_to_process)}")
-    print(f"⏱️  Temps total: {total_time/60:.1f} min")
+    print(f"Succès: {success}/{len(videos_to_process)}")
+    print(f"Erreurs: {errors}/{len(videos_to_process)}")
+    print(f"Temps total: {total_time/60:.1f} min")
     if success > 0:
-        print(f"⚡ Temps moyen: {total_time/success:.1f}s par vidéo")
-    print(f"📁 Trajectoires: data/trajectories/")
+        print(f"Temps moyen: {total_time/success:.1f}s par vidéo")
+    print("Trajectoires: data/trajectories/")
     print("=" * 70)
     
     # 6. VÉRIFICATION FINALE (always)
-    print("\n🔍 Vérification finale...")
+    print("\nVérification finale...")
     final_scan = validator.scan_all_videos()
-    print(f"✅ {final_scan['summary']['complete']}/{final_scan['summary']['total']} vidéos complètes")
+    print(f"OK: {final_scan['summary']['complete']}/{final_scan['summary']['total']} vidéos complètes")
 
     trajectories_dir = Path("data/trajectories")
     has_trajectories = trajectories_dir.exists() and any(trajectories_dir.glob("*.json"))
     if not has_trajectories:
-        print("\n⚠️  Aucune trajectoire trouvée dans data/trajectories/.")
+        print("\nAVERTISSEMENT: Aucune trajectoire trouvée dans data/trajectories/.")
         print("   Lancez un traitement (--force) pour générer les trajectoires.")
 
     # 7. GLOBAL MATCHING (always if trajectories exist)
@@ -304,7 +304,7 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
         ev_total = report.get("events", {}).get("summary", {}).get("total", 0)
         by_type = report.get("events", {}).get("summary", {}).get("by_type", {})
         print("\n" + "=" * 70)
-        print("🚨 INTRUSIONS (résumé)")
+        print("INTRUSIONS (résumé)")
         print("=" * 70)
         print(f"Events: {ev_total} | Fichier: {events_file}")
         if by_type:
@@ -313,9 +313,9 @@ def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external:
     except Exception:
         pass
 
-    print(f"\n📄 Rapport complet: {report_file}")
+    print(f"\nRapport complet: {report_file}")
     if isinstance(db_info, dict) and "error" not in db_info:
-        print("📦 Database CSV mis à jour: database/personnes.csv, database/evenements.csv, database/classes.csv")
+        print("Exports CSV mis à jour: database/personnes.csv, database/evenements.csv, database/classes.csv")
 
 
 if __name__ == "__main__":
@@ -341,4 +341,4 @@ if __name__ == "__main__":
             quiet_external=not bool(args.no_quiet_external),
         )
     except KeyboardInterrupt:
-        print("\n\n⏹️  Arrêt demandé")
+        print("\n\nArrêt demandé")

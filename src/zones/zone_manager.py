@@ -79,8 +79,8 @@ class ZoneManager:
             "active": True,
             "area": int(polygon.area)
         }
-        
-        print(f"[ZONES] ✓ Zone créée: {zone_id} ({name}) - {len(polygon_points)} points")
+
+        print(f"[ZONES] OK: zone créée: {zone_id} ({name}) - {len(polygon_points)} points")
     
     def is_point_in_zone(self, x: int, y: int, zone_id: str) -> bool:
         """
@@ -186,8 +186,8 @@ class ZoneManager:
         
         with open(self.zones_file, 'w', encoding='utf-8') as f:
             json.dump(zones_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"[ZONES] ✓ {len(zones_data)} zone(s) sauvegardée(s) dans {self.zones_file}")
+
+        print(f"[ZONES] OK: {len(zones_data)} zone(s) sauvegardée(s) dans {self.zones_file}")
     
     def load_zones(self):
         """Charge les zones depuis le fichier JSON"""
@@ -196,36 +196,36 @@ class ZoneManager:
                 zones_data = json.load(f)
             
             self.zones = zones_data
-            print(f"[ZONES] ✓ {len(self.zones)} zone(s) chargée(s)")
+            print(f"[ZONES] OK: {len(self.zones)} zone(s) chargée(s)")
             for zone in self.zones.values():
                 zone["_polygon_obj"] = Polygon(zone["polygon"])
 
         except Exception as e:
-            print(f"[ZONES] ⚠️  Erreur chargement: {e}")
+            print(f"[ZONES] AVERTISSEMENT: erreur chargement: {e}")
             self.zones = {}
     
     def deactivate_zone(self, zone_id: str):
         """Désactive temporairement une zone"""
         if zone_id in self.zones:
             self.zones[zone_id]["active"] = False
-            print(f"[ZONES] ⏸️  Zone désactivée: {zone_id}")
+            print(f"[ZONES] INFO: zone désactivée: {zone_id}")
     
     def activate_zone(self, zone_id: str):
         """Réactive une zone"""
         if zone_id in self.zones:
             self.zones[zone_id]["active"] = True
-            print(f"[ZONES] ▶️  Zone activée: {zone_id}")
+            print(f"[ZONES] INFO: zone activée: {zone_id}")
     
     def delete_zone(self, zone_id: str):
         """Supprime une zone"""
         if zone_id in self.zones:
             del self.zones[zone_id]
-            print(f"[ZONES] 🗑️  Zone supprimée: {zone_id}")
+            print(f"[ZONES] INFO: zone supprimée: {zone_id}")
     
     def print_summary(self):
         """Affiche un résumé des zones"""
         print("\n" + "=" * 70)
-        print("🚨 ZONES INTERDITES")
+        print("ZONES INTERDITES")
         print("=" * 70)
         
         if not self.zones:
@@ -243,19 +243,19 @@ class ZoneManager:
         print(f"\nTotal: {len(self.zones)} zone(s) sur {len(by_camera)} caméra(s)")
         
         for camera, zones in sorted(by_camera.items()):
-            print(f"\n📹 {camera}:")
+            print(f"\nCaméra: {camera}")
             for zone in zones:
-                status = "✓" if zone.get("active", True) else "✗"
-                print(f"  {status} {zone['zone_id']}: {zone['name']}")
-                print(f"      → {len(zone['polygon'])} points, {zone.get('area', 0)} px²")
+                status = "ACTIVE" if zone.get("active", True) else "INACTIVE"
+                print(f"  [{status}] {zone['zone_id']}: {zone['name']}")
+                print(f"      - {len(zone['polygon'])} points, {zone.get('area', 0)} px²")
                 if zone.get("description"):
-                    print(f"      → {zone['description']}")
+                    print(f"      - {zone['description']}")
         
         print("=" * 70)
     
     def create_example_zones(self):
         """Crée des zones d'exemple pour démonstration"""
-        print("\n[ZONES] 📝 Création de zones d'exemple...")
+        print("\n[ZONES] Création de zones d'exemple...")
         
         # Zone 1: Bureau du directeur (exemple)
         self.create_zone(

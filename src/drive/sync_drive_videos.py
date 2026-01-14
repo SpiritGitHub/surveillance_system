@@ -44,7 +44,7 @@ def download_file(service, file_id, filename, save_path, file_size):
             unit='B',
             unit_scale=True,
             unit_divisor=1024,
-            desc=f"📥 {filename}",
+            desc=f"Téléchargement: {filename}",
             ncols=100,
             bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         ) as pbar:
@@ -61,7 +61,7 @@ def download_file(service, file_id, filename, save_path, file_size):
 
 # MAIN SYNC FUNCTION
 def sync_drive_videos():
-    logger.info("🚀 Démarrage synchronisation Google Drive")
+    logger.info("Démarrage synchronisation Google Drive")
 
     creds = authenticate()
     service = build("drive", "v3", credentials=creds)
@@ -79,24 +79,24 @@ def sync_drive_videos():
     files = results.get("files", [])
 
     if not files:
-        logger.warning("⚠️  Aucune vidéo trouvée sur Drive")
+        logger.warning("Aucune vidéo trouvée sur Drive")
         return
 
     # Filtrer uniquement les vidéos
     video_files = [f for f in files if f["name"].lower().endswith(VIDEO_EXTENSIONS)]
     
     # CORRECTION : Utiliser print() au lieu de logger.info() avec f-string
-    print(f"📊 {len(video_files)} vidéo(s) trouvée(s) sur Drive")
+    print(f"{len(video_files)} vidéo(s) trouvée(s) sur Drive")
     
     # Compter les vidéos à télécharger
     to_download = [f for f in video_files if f["name"] not in metadata]
     
     if not to_download:
-        logger.success("✅ Toutes les vidéos sont déjà téléchargées")
+        logger.success("Toutes les vidéos sont déjà téléchargées")
         return
     
     # CORRECTION : Utiliser print() au lieu de logger.info() avec f-string
-    print(f"⬇️  {len(to_download)} vidéo(s) à télécharger")
+    print(f"{len(to_download)} vidéo(s) à télécharger")
     print()  # Ligne vide pour la lisibilité
 
     for idx, file in enumerate(to_download, 1):
@@ -125,17 +125,17 @@ def sync_drive_videos():
             }
 
             save_metadata(metadata)
-            logger.success(f"✅ Téléchargement réussi : {name}")
+            logger.success(f"Téléchargement réussi : {name}")
 
         except Exception as e:
             # CORRECTION : Utiliser print() au lieu de logger.error() avec f-string
-            print(f"❌ Erreur sur {name} : {e}")
+            print(f"ERREUR sur {name} : {e}")
 
             if os.path.exists(local_path):
                 os.remove(local_path)
     
     print()  # Ligne vide finale
-    print(f"🎉 Synchronisation terminée ! {len(to_download)} vidéo(s) téléchargée(s)")
+    print(f"Synchronisation terminée : {len(to_download)} vidéo(s) téléchargée(s)")
 
 
 if __name__ == "__main__":

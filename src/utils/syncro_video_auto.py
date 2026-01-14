@@ -24,16 +24,16 @@ class AutoVideoSyncTool:
     def load_metadata(self):
         """Charge toutes les métadonnées des vidéos"""
         if not self.metadata_dir.exists():
-            print(f"❌ Dossier de métadonnées introuvable: {self.metadata_dir}")
+            print(f"ERREUR: dossier de métadonnées introuvable: {self.metadata_dir}")
             return False
         
         metadata_files = list(self.metadata_dir.glob("*.json"))
         
         if not metadata_files:
-            print(f"❌ Aucun fichier de métadonnées trouvé dans {self.metadata_dir}")
+            print(f"ERREUR: aucun fichier de métadonnées trouvé dans {self.metadata_dir}")
             return False
         
-        print(f"\n📂 Chargement des métadonnées...")
+        print("\nChargement des métadonnées...")
         
         for meta_file in metadata_files:
             try:
@@ -42,12 +42,12 @@ class AutoVideoSyncTool:
                 
                 camera_id = meta_file.stem
                 self.video_metadata[camera_id] = data
-                print(f"   ✓ {camera_id}")
+                print(f"   - {camera_id}")
                 
             except Exception as e:
-                print(f"   ❌ Erreur lecture {meta_file.name}: {e}")
+                print(f"   ERREUR lecture {meta_file.name}: {e}")
         
-        print(f"\n✓ {len(self.video_metadata)} métadonnée(s) chargée(s)")
+        print(f"\nOK: {len(self.video_metadata)} métadonnée(s) chargée(s)")
         return len(self.video_metadata) > 0
     
     def extract_timestamps(self, camera_id: str) -> Dict[str, Optional[datetime]]:
@@ -128,7 +128,7 @@ class AutoVideoSyncTool:
     def sync_by_timestamps(self) -> bool:
         """Synchronisation basée sur les timestamps de création/encodage"""
         print("\n" + "="*70)
-        print("📅 MÉTHODE 1: Synchronisation par timestamps")
+        print("MÉTHODE 1: synchronisation par timestamps")
         print("="*70)
         
         # Collecter les timestamps pour chaque caméra
@@ -138,24 +138,24 @@ class AutoVideoSyncTool:
             timestamps = self.extract_timestamps(camera_id)
             
             if not timestamps:
-                print(f"⚠️  {camera_id}: Aucun timestamp trouvé")
+                print(f"AVERTISSEMENT: {camera_id}: aucun timestamp trouvé")
                 continue
             
             camera_timestamps[camera_id] = timestamps
         
         if len(camera_timestamps) < 2:
-            print("\n❌ Pas assez de timestamps disponibles pour la synchronisation")
+            print("\nERREUR: pas assez de timestamps disponibles pour la synchronisation")
             return False
         
         # Afficher les timestamps disponibles
-        print("\n📊 Timestamps disponibles:")
+        print("\nTimestamps disponibles:")
         for camera_id, timestamps in camera_timestamps.items():
             print(f"\n   {camera_id}:")
             for ts_type, ts in sorted(timestamps.items()):
                 print(f"      - {ts_type:20s}: {ts.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         
         # Demander quel type de timestamp utiliser
-        print("\n🎯 Quel timestamp voulez-vous utiliser pour la synchronisation ?")
+        print("\nQuel timestamp voulez-vous utiliser pour la synchronisation ?")
         
         # Trouver les types de timestamps communs
         all_types = set()
@@ -173,14 +173,14 @@ class AutoVideoSyncTool:
         
         print(f"\n   Tous les timestamps disponibles:")
         for i, ts_type in enumerate(sorted(all_types), 1):
-            marker = "✓" if ts_type in common_types else "⚠️ "
-            print(f"      [{i}] {marker} {ts_type}")
+            marker = "OK" if ts_type in common_types else "PARTIEL"
+            print(f"      [{i}] ({marker}) {ts_type}")
         
         choice = input("\n   Numéro du timestamp à utiliser [1]: ").strip()
         idx = int(choice) - 1 if choice else 0
         
         selected_type = sorted(all_types)[idx]
-        print(f"\n✓ Utilisation de: {selected_type}")
+        print(f"\nOK: utilisation de: {selected_type}")
         
         # Collecter les timestamps sélectionnés
         selected_timestamps = {}
@@ -188,21 +188,21 @@ class AutoVideoSyncTool:
             if selected_type in timestamps:
                 selected_timestamps[camera_id] = timestamps[selected_type]
             else:
-                print(f"⚠️  {camera_id}: timestamp '{selected_type}' non disponible, caméra ignorée")
+                print(f"AVERTISSEMENT: {camera_id}: timestamp '{selected_type}' non disponible, caméra ignorée")
         
         if len(selected_timestamps) < 2:
-            print("\n❌ Pas assez de caméras avec ce timestamp")
+            print("\nERREUR: pas assez de caméras avec ce timestamp")
             return False
         
         # Trouver le timestamp de référence (le plus ancien = vidéo qui a commencé en premier)
         ref_camera = min(selected_timestamps.items(), key=lambda x: x[1])
         ref_camera_id, ref_timestamp = ref_camera
         
-        print(f"\n🎯 Caméra de référence (vidéo la plus ancienne): {ref_camera_id}")
+        print(f"\nCaméra de référence (vidéo la plus ancienne): {ref_camera_id}")
         print(f"   Timestamp: {ref_timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         
         # Calculer les offsets
-        print(f"\n⏱️  Calcul des offsets...")
+        print("\nCalcul des offsets...")
         self.offsets = {}
         
         for camera_id, timestamp in sorted(selected_timestamps.items()):
@@ -212,7 +212,7 @@ class AutoVideoSyncTool:
             offset = (timestamp - ref_timestamp).total_seconds()
             self.offsets[camera_id] = offset
             
-            status = "🎯 RÉFÉRENCE" if camera_id == ref_camera_id else f"{offset:+.2f}s"
+            status = "RÉFÉRENCE" if camera_id == ref_camera_id else f"{offset:+.2f}s"
             print(f"   {camera_id:40s} {status}")
         
         return True
@@ -220,9 +220,9 @@ class AutoVideoSyncTool:
     def sync_by_duration(self) -> bool:
         """Synchronisation basée sur la durée des vidéos"""
         print("\n" + "="*70)
-        print("⏱️  MÉTHODE 2: Synchronisation par durée")
+        print("MÉTHODE 2: synchronisation par durée")
         print("="*70)
-        print("\n💡 Hypothèse: La vidéo la plus longue a commencé en premier")
+        print("\nHypothèse: la vidéo la plus longue a commencé en premier")
         
         # Collecter les durées
         camera_durations = {}
@@ -231,17 +231,17 @@ class AutoVideoSyncTool:
             duration = self.get_duration(camera_id)
             
             if duration is None:
-                print(f"⚠️  {camera_id}: Durée non disponible")
+                print(f"AVERTISSEMENT: {camera_id}: durée non disponible")
                 continue
             
             camera_durations[camera_id] = duration
         
         if len(camera_durations) < 2:
-            print("\n❌ Pas assez de durées disponibles pour la synchronisation")
+            print("\nERREUR: pas assez de durées disponibles pour la synchronisation")
             return False
         
         # Afficher les durées
-        print("\n📊 Durées des vidéos:")
+        print("\nDurées des vidéos:")
         for camera_id, duration in sorted(camera_durations.items(), key=lambda x: -x[1]):
             minutes = int(duration // 60)
             seconds = duration % 60
@@ -251,11 +251,11 @@ class AutoVideoSyncTool:
         ref_camera_id = max(camera_durations.items(), key=lambda x: x[1])[0]
         ref_duration = camera_durations[ref_camera_id]
         
-        print(f"\n🎯 Caméra de référence (vidéo la plus longue): {ref_camera_id}")
+        print(f"\nCaméra de référence (vidéo la plus longue): {ref_camera_id}")
         print(f"   Durée: {int(ref_duration//60)}m {ref_duration%60:.2f}s")
         
         # Calculer les offsets
-        print(f"\n⏱️  Calcul des offsets...")
+        print("\nCalcul des offsets...")
         self.offsets = {}
         
         for camera_id, duration in sorted(camera_durations.items()):
@@ -264,10 +264,10 @@ class AutoVideoSyncTool:
             offset = ref_duration - duration
             self.offsets[camera_id] = offset
             
-            status = "🎯 RÉFÉRENCE" if camera_id == ref_camera_id else f"+{offset:.2f}s"
+            status = "RÉFÉRENCE" if camera_id == ref_camera_id else f"+{offset:.2f}s"
             print(f"   {camera_id:40s} {status}")
         
-        print("\n⚠️  ATTENTION: Cette méthode suppose que toutes les vidéos se sont")
+        print("\nAVERTISSEMENT: cette méthode suppose que toutes les vidéos se sont")
         print("   terminées au même moment. Vérifiez manuellement si nécessaire.")
         
         return True
@@ -277,7 +277,7 @@ class AutoVideoSyncTool:
         self.offsets_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.offsets_file, 'w', encoding='utf-8') as f:
             json.dump(self.offsets, f, indent=2, ensure_ascii=False)
-        print(f"\n💾 Offsets sauvegardés: {self.offsets_file}")
+        print(f"\nOffsets sauvegardés: {self.offsets_file}")
     
     def load_existing_offsets(self):
         """Charge les offsets existants"""
@@ -290,7 +290,7 @@ class AutoVideoSyncTool:
 def main():
     """Point d'entrée"""
     print("\n" + "=" * 70)
-    print("🤖 SYNCHRONISATION AUTOMATIQUE DES VIDÉOS")
+    print("SYNCHRONISATION AUTOMATIQUE DES VIDÉOS")
     print("=" * 70)
     print("\nCet outil calcule automatiquement les offsets entre caméras")
     print("en utilisant les métadonnées des vidéos.")
@@ -300,31 +300,31 @@ def main():
     
     # Charger les métadonnées
     if not tool.load_metadata():
-        print("\n❌ Impossible de continuer sans métadonnées")
+        print("\nERREUR: impossible de continuer sans métadonnées")
         return
     
     # Afficher les offsets existants si présents
     existing_offsets = tool.load_existing_offsets()
     if existing_offsets:
-        print("\n📋 Offsets existants:")
+        print("\nOffsets existants:")
         for camera_id, offset in sorted(existing_offsets.items()):
             print(f"   {camera_id:40s} {offset:+.2f}s")
         
-        replace = input("\n⚠️  Écraser les offsets existants ? (o/n) [n]: ").strip().lower()
+        replace = input("\nÉcraser les offsets existants ? (o/n) [n]: ").strip().lower()
         if replace != 'o':
-            print("\n⏸️  Opération annulée")
+            print("\nOpération annulée")
             return
     
     # Choisir la méthode
     print("\n" + "=" * 70)
-    print("🎯 CHOISIR LA MÉTHODE DE SYNCHRONISATION")
+    print("CHOISIR LA MÉTHODE DE SYNCHRONISATION")
     print("=" * 70)
     print("\n   [1] Par timestamps (date/heure de création/encodage)")
-    print("       → Plus précis si les timestamps sont fiables")
-    print("       → Utilise les métadonnées de Google Drive ou MediaInfo")
+    print("       - Plus précis si les timestamps sont fiables")
+    print("       - Utilise les métadonnées de Google Drive ou MediaInfo")
     print("\n   [2] Par durée des vidéos")
-    print("       → Suppose que la vidéo la plus longue a démarré en premier")
-    print("       → Moins précis mais fonctionne sans timestamps")
+    print("       - Suppose que la vidéo la plus longue a démarré en premier")
+    print("       - Moins précis mais fonctionne sans timestamps")
     
     choice = input("\n   Méthode [1]: ").strip()
     
@@ -336,34 +336,34 @@ def main():
         success = tool.sync_by_timestamps()
     
     if not success:
-        print("\n❌ Synchronisation échouée")
+        print("\nERREUR: synchronisation échouée")
         return
     
     # Demander confirmation
     print("\n" + "=" * 70)
-    print("📊 RÉSUMÉ DES OFFSETS CALCULÉS")
+    print("RÉSUMÉ DES OFFSETS CALCULÉS")
     print("=" * 70)
     
     for camera_id, offset in sorted(tool.offsets.items()):
         if offset == 0:
-            status = "🎯 RÉFÉRENCE (0s)"
+            status = "RÉFÉRENCE (0s)"
         elif offset > 0:
-            status = f"⏱️  +{offset:.2f}s (démarre {offset:.2f}s APRÈS la référence)"
+            status = f"+{offset:.2f}s (démarre {offset:.2f}s APRÈS la référence)"
         else:
-            status = f"⏱️  {offset:.2f}s (démarre {-offset:.2f}s AVANT la référence)"
+            status = f"{offset:.2f}s (démarre {-offset:.2f}s AVANT la référence)"
         
         print(f"   {camera_id:40s} {status}")
     
-    confirm = input(f"\n💾 Sauvegarder ces offsets ? (o/n) [o]: ").strip().lower()
+    confirm = input("\nSauvegarder ces offsets ? (o/n) [o]: ").strip().lower()
     
     if confirm != 'n':
         tool.save_offsets()
-        print("\n✅ Synchronisation automatique terminée !")
-        print("\n💡 Vous pouvez maintenant:")
+        print("\nOK: synchronisation automatique terminée")
+        print("\nVous pouvez maintenant:")
         print("   - Vérifier les offsets avec l'outil de visualisation multi-caméras")
         print("   - Affiner manuellement si nécessaire avec sync_videos.py")
     else:
-        print("\n⏸️  Offsets non sauvegardés")
+        print("\nOffsets non sauvegardés")
 
 
 if __name__ == "__main__":

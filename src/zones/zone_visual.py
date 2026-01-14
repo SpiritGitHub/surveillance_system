@@ -74,7 +74,7 @@ class UnifiedZoneEditor:
         if target_frame >= total_frames:
             # Prendre la frame du milieu si timestamp trop grand
             target_frame = total_frames // 2
-            print(f"  ⚠️  Timestamp trop grand, utilisation frame {target_frame}")
+            print(f"  AVERTISSEMENT: timestamp trop grand, utilisation frame {target_frame}")
         
         # Aller à la frame
         cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
@@ -90,7 +90,7 @@ class UnifiedZoneEditor:
         
         if rotation > 0:
             frame = self.orientation_detector.rotate_frame(frame, rotation)
-            print(f"  🔄 Rotation appliquée: {rotation * 90}°")
+            print(f"  Rotation appliquée: {rotation * 90}°")
         
         # Redimensionner
         frame, scale = self.resize_frame(frame)
@@ -113,7 +113,7 @@ class UnifiedZoneEditor:
         camera_id = video_path.stem.replace("CAMERA_", "")
         
         print(f"\n{'='*70}")
-        print(f"📹 {video_path.name}")
+        print(f"Vidéo: {video_path.name}")
         print(f"   Caméra: {camera_id}")
         print(f"   Timestamp: {self.timestamp_seconds}s ({self.timestamp_seconds//60}min {self.timestamp_seconds%60}s)")
         print('='*70)
@@ -122,7 +122,7 @@ class UnifiedZoneEditor:
         frame, fps, scale = self.get_frame_at_timestamp(str(video_path))
         
         if frame is None:
-            print("  ❌ Impossible de charger la frame")
+            print("  ERREUR: impossible de charger la frame")
             return None
         
         # Afficher la frame dans une fenêtre
@@ -136,7 +136,7 @@ class UnifiedZoneEditor:
         cv2.imshow(window_name, display_frame)
         
         # Instructions terminal
-        print("\n👁️  Vidéo affichée ! Appuyez sur :")
+        print("\nVidéo affichée. Appuyez sur :")
         print("  C = Créer une zone sur cette caméra")
         print("  S = Sauter cette caméra")
         print("  Q ou ESC = Quitter")
@@ -171,10 +171,10 @@ class UnifiedZoneEditor:
         zone_data = editor.edit()
         
         if zone_data:
-            print(f"\n  ✓ Zone '{zone_name}' créée sur {camera_id}")
+            print(f"\n  OK: zone '{zone_name}' créée sur {camera_id}")
             return zone_data
         else:
-            print(f"\n  ✗ Création annulée")
+            print("\n  Annulé")
             return None
 
 
@@ -252,7 +252,7 @@ class ZoneEditor:
     
     def edit(self):
         """Lance l'éditeur"""
-        print(f"\n  🖊️  Créez la zone en cliquant sur les coins")
+        print("\n  Créez la zone en cliquant sur les coins")
         print(f"     Minimum 4 points requis")
         
         cv2.namedWindow("Zone Editor", cv2.WINDOW_NORMAL)
@@ -273,7 +273,7 @@ class ZoneEditor:
                         "polygon": self.points
                     }
                 else:
-                    print(f"  ⚠️  Il faut au moins 4 points (vous en avez {len(self.points)})")
+                    print(f"  AVERTISSEMENT: il faut au moins 4 points (vous en avez {len(self.points)})")
             
             elif key == 27:  # ESC
                 cv2.destroyAllWindows()
@@ -284,7 +284,7 @@ def main():
     """Point d'entrée principal"""
     
     print("\n" + "=" * 70)
-    print("🚨 CRÉATION DE ZONES UNIFIÉES")
+    print("CRÉATION DE ZONES UNIFIÉES")
     print("=" * 70)
     print("\nCe script va afficher toutes les vidéos au même timestamp (1min 2sec)")
     print("Vous pouvez créer une zone ou passer à la suivante")
@@ -294,11 +294,11 @@ def main():
     # Vérifier les orientations
     orientation_detector = ManualOrientationDetector()
     if not orientation_detector.orientations:
-        print("\n❌ Aucune orientation configurée !")
+        print("\nERREUR: aucune orientation configurée")
         print("   Lancez d'abord: python configure_orientations.py")
         return
     
-    print(f"\n✓ {len(orientation_detector.orientations)} orientation(s) configurée(s)")
+    print(f"\nOK: {len(orientation_detector.orientations)} orientation(s) configurée(s)")
     
     # Paramètres
     timestamp = input("\nTimestamp à utiliser (secondes) [62]: ").strip()
@@ -307,18 +307,18 @@ def main():
     display_width = input("Largeur d'affichage (pixels) [1280]: ").strip()
     display_width = int(display_width) if display_width else 1280
     
-    print(f"\n✓ Utilisation du timestamp: {timestamp}s ({timestamp//60}min {timestamp%60}s)")
-    print(f"✓ Largeur d'affichage: {display_width}px")
+    print(f"\nOK: utilisation du timestamp: {timestamp}s ({timestamp//60}min {timestamp%60}s)")
+    print(f"OK: largeur d'affichage: {display_width}px")
     
     # Lister les vidéos
     video_dir = Path("data/videos")
     videos = sorted(list(video_dir.glob("*.mp4")))
     
     if not videos:
-        print("\n❌ Aucune vidéo trouvée dans data/videos/")
+        print("\nERREUR: aucune vidéo trouvée dans data/videos/")
         return
     
-    print(f"\n✓ {len(videos)} vidéo(s) trouvée(s)")
+    print(f"\nOK: {len(videos)} vidéo(s) trouvée(s)")
     
     # Initialiser l'éditeur
     editor = UnifiedZoneEditor(timestamp_seconds=timestamp, display_width=display_width)
@@ -336,7 +336,7 @@ def main():
         result = editor.create_zone_on_video(str(video_path), zone_id, zone_name)
         
         if result == 'quit':
-            print("\n⏸️  Arrêt demandé")
+            print("\nArrêt demandé")
             break
         
         if result:
@@ -356,10 +356,10 @@ def main():
         editor.zone_manager.save_zones()
         editor.zone_manager.print_summary()
         
-        print(f"\n✅ {len(zones_created)} zone(s) créée(s) avec succès !")
-        print(f"📁 Fichier: data/zones_interdites.json")
+        print(f"\nOK: {len(zones_created)} zone(s) créée(s) avec succès")
+        print("Fichier: data/zones_interdites.json")
     else:
-        print("\n⚠️  Aucune zone créée")
+        print("\nAVERTISSEMENT: aucune zone créée")
 
 
 if __name__ == "__main__":

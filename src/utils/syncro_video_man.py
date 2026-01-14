@@ -173,35 +173,35 @@ class VideoSyncTool:
         if self.offsets_file.exists():
             with open(self.offsets_file, 'r', encoding='utf-8') as f:
                 self.offsets = json.load(f)
-            print(f"✓ {len(self.offsets)} offset(s) chargé(s)")
+            print(f"OK: {len(self.offsets)} offset(s) chargé(s)")
     
     def save_offsets(self):
         """Sauvegarde les offsets"""
         self.offsets_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.offsets_file, 'w', encoding='utf-8') as f:
             json.dump(self.offsets, f, indent=2, ensure_ascii=False)
-        print(f"\n💾 Offsets sauvegardés: {self.offsets_file}")
+        print(f"\nOffsets sauvegardés: {self.offsets_file}")
     
     def configure_offset(self, ref_video_path, ref_camera_id, target_video_path, target_camera_id):
         """Configure l'offset pour une caméra en comparaison avec la référence"""
         print(f"\n{'='*70}")
-        print(f"📹 Synchronisation: {target_camera_id} avec {ref_camera_id} (référence)")
+        print(f"Synchronisation: {target_camera_id} avec {ref_camera_id} (référence)")
         print('='*70)
         
         # Offset actuel
         current_offset = self.offsets.get(target_camera_id, 0)
-        print(f"\n⏱️  Offset actuel: {current_offset}s")
+        print(f"\nOffset actuel: {current_offset}s")
         
-        print("\n📝 Instructions:")
-        print("   🎬 CONTRÔLES DE LECTURE:")
+        print("\nInstructions:")
+        print("   Contrôles de lecture:")
         print("      ESPACE = Lecture/Pause")
-        print("      ← → = -1s / +1s sur les DEUX vidéos")
+        print("      Flèche gauche/droite = -1s / +1s sur les DEUX vidéos")
         print("      A D = -0.1s / +0.1s sur la vidéo CIBLE uniquement")
         print("      Q W = -5s / +5s sur les DEUX vidéos")
         print("      Z X = -10s / +10s sur les DEUX vidéos")
         print("      R = Retour au début")
         print("      S = Vitesse (0.25x / 0.5x / 1x)")
-        print("\n   🎯 SYNCHRONISATION:")
+        print("\n   Synchronisation:")
         print("      Trouvez un événement commun et ajustez jusqu'à ce qu'il")
         print("      apparaisse au MÊME MOMENT sur les deux vidéos")
         print("\n      ENTER = Confirmer et calculer l'offset")
@@ -329,20 +329,20 @@ class VideoSyncTool:
             
             print(f"\n✓ Offset calculé: {offset:.2f}s")
             if offset > 0:
-                print(f"   → La vidéo cible est EN RETARD de {offset:.2f}s")
+                print(f"   La vidéo cible est EN RETARD de {offset:.2f}s")
             elif offset < 0:
-                print(f"   → La vidéo cible est EN AVANCE de {-offset:.2f}s")
+                print(f"   La vidéo cible est EN AVANCE de {-offset:.2f}s")
             else:
-                print(f"   → Les vidéos sont SYNCHRONISÉES")
+                print("   Les vidéos sont synchronisées")
             
-            confirm = input(f"\n💾 Sauvegarder cet offset ? (o/n) [o]: ").strip().lower()
+            confirm = input("\nSauvegarder cet offset ? (o/n) [o]: ").strip().lower()
             if confirm != 'n':
                 return offset
             
             return None
             
         except Exception as e:
-            print(f"❌ Erreur: {e}")
+            print(f"ERREUR: {e}")
             return None
     
     def add_help_overlay(self, display, speed):
@@ -350,7 +350,7 @@ class VideoSyncTool:
         h = display.shape[0]
         cv2.rectangle(display, (0, h-60), (display.shape[1], h), (0, 0, 0), -1)
         
-        help_text = f"ESPACE:Play/Pause | ←→:±1s | AD:±0.1s cible | QW:±5s | ZX:±10s | S:Vitesse({speed}x) | R:Reset | ENTER:Valider | ESC:Annuler"
+        help_text = f"ESPACE: Play/Pause | Fleches: ±1s | AD: ±0.1s cible | QW: ±5s | ZX: ±10s | S: Vitesse({speed}x) | R: Reset | ENTER: Valider | ESC: Annuler"
         cv2.putText(display, help_text, (10, h-35),
                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
@@ -358,7 +358,7 @@ class VideoSyncTool:
 def main():
     """Point d'entrée"""
     print("\n" + "=" * 70)
-    print("🔄 OUTIL DE SYNCHRONISATION VIDÉO")
+    print("OUTIL DE SYNCHRONISATION VIDÉO")
     print("=" * 70)
     print("\nCet outil permet de synchroniser les caméras en les visualisant")
     print("simultanément et en ajustant leur décalage temporel.")
@@ -369,32 +369,32 @@ def main():
     videos = sorted(list(video_dir.glob("*.mp4")))
     
     if not videos:
-        print("\n❌ Aucune vidéo trouvée dans data/videos/")
+        print("\nERREUR: aucune vidéo trouvée dans data/videos/")
         return
     
-    print(f"\n✓ {len(videos)} vidéo(s) trouvée(s)")
+    print(f"\nOK: {len(videos)} vidéo(s) trouvée(s)")
     
     # Afficher les vidéos
-    print("\n📹 Caméras disponibles:")
+    print("\nCaméras disponibles:")
     for i, video in enumerate(videos, 1):
         camera_id = video.stem.replace("CAMERA_", "")
         print(f"   [{i}] {camera_id}")
     
     # Demander la caméra de référence
-    print("\n🎯 Quelle caméra voulez-vous utiliser comme RÉFÉRENCE ?")
+    print("\nQuelle caméra voulez-vous utiliser comme RÉFÉRENCE ?")
     print("   (Son offset sera 0, les autres seront calculés par rapport à elle)")
     
     ref_choice = input("\nNuméro de la caméra de référence [1]: ").strip()
     ref_idx = int(ref_choice) - 1 if ref_choice else 0
     
     if ref_idx < 0 or ref_idx >= len(videos):
-        print("❌ Choix invalide")
+        print("ERREUR: choix invalide")
         return
     
     ref_video = videos[ref_idx]
     ref_camera_id = ref_video.stem.replace("CAMERA_", "")
     
-    print(f"\n✓ Caméra de référence: {ref_camera_id}")
+    print(f"\nOK: caméra de référence: {ref_camera_id}")
     
     # Créer l'outil
     tool = VideoSyncTool()
@@ -419,36 +419,36 @@ def main():
         choice = input("   Configurer cette caméra ? (o/n/q pour quitter) [o]: ").strip().lower()
         
         if choice == 'q':
-            print("\n⏸️  Arrêt demandé")
+            print("\nArrêt demandé")
             break
         
         if choice == 'n':
-            print("   → Caméra ignorée")
+            print("   Caméra ignorée")
             continue
         
         offset = tool.configure_offset(ref_video, ref_camera_id, video, camera_id)
         
         if offset is not None:
             tool.offsets[camera_id] = offset
-            print(f"   ✓ Offset enregistré: {offset:.2f}s")
+            print(f"   OK: offset enregistré: {offset:.2f}s")
     
     # Sauvegarder
     if tool.offsets:
         tool.save_offsets()
         
         print("\n" + "=" * 70)
-        print("📊 RÉSUMÉ DES OFFSETS")
+        print("RÉSUMÉ DES OFFSETS")
         print("=" * 70)
         
         for camera_id, offset in sorted(tool.offsets.items()):
-            status = "🎯 RÉFÉRENCE" if offset == 0 else f"⏱️  {offset:+.2f}s"
+            status = "RÉFÉRENCE" if offset == 0 else f"{offset:+.2f}s"
             print(f"   {camera_id:40s} {status}")
         
-        print(f"\n✅ Configuration terminée !")
-        print(f"📁 Fichier: {tool.offsets_file}")
-        print(f"\n💡 Ces offsets seront maintenant utilisés par le visualiseur multi-caméras")
+        print("\nOK: configuration terminée")
+        print(f"Fichier: {tool.offsets_file}")
+        print("\nCes offsets seront maintenant utilisés par le visualiseur multi-caméras")
     else:
-        print("\n⚠️  Aucun offset configuré")
+        print("\nAVERTISSEMENT: aucun offset configuré")
 
 
 if __name__ == "__main__":
