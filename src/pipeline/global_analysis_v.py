@@ -14,7 +14,8 @@ class GlobalAnalyzer:
         self.data_dir = Path(data_dir)
         self.traj_dir = self.data_dir / "trajectories"
         self.stories = {} # global_id -> Story object
-        self.zone_manager = ZoneManager() # Loads zones automatically
+        # Load zones from the same data_dir so DashboardV stays consistent.
+        self.zone_manager = ZoneManager(zones_file=str(self.data_dir / "zones_interdites.json"))
 
     def load_data(self):
         """Loads all trajectory JSONs and organizes data by global_id."""
@@ -48,21 +49,26 @@ class GlobalAnalyzer:
                         "start_time": track["frames"][0]["t_sync"],
                         "end_time": track["frames"][-1]["t_sync"],
                         "alerts": [],
-                        "frames": track["frames"] # Keep frames for detailed replay if needed
                     }
                     
                     # Detect Intrusions (Re-calculation)
                     for fr in track["frames"]:
                         # Center point
                         cx, cy = fr["x"], fr["y"]
-                        # Check zone
-                        in_zone, zone_list = self.zone_manager.check_point(cx, cy, video_id)
-                        if in_zone:
-                            for z in zone_list:
-                                # Add alert
+                        # Check zones (ZoneManager API)
+                        try:
+                            zone_ids = self.zone_manager.check_point_all_zones(cx, cy, camera_id=video_id)
+                        except Exception:
+                            zone_ids = []
+
+                        if zone_ids:
+                            for zid in zone_ids:
+                                z = self.zone_manager.zones.get(zid, {}) if hasattr(self.zone_manager, "zones") else {}
+                                zone_name = z.get("name") or str(zid)
                                 segment["alerts"].append({
-                                    "time": fr["t_sync"],
-                                    "zone": z["name"]
+                                    "time": fr.get("t_sync"),
+                                    "zone": zone_name,
+                                    "zone_id": str(zid),
                                 })
                     
                     all_segments[gid].append(segment)
@@ -100,7 +106,8 @@ class GlobalAnalyzer:
                         story["alerts"].append({
                             "camera": seg["video_id"],
                             "time": a["time"],
-                            "zone": a["zone"]
+                            "zone": a.get("zone"),
+                            "zone_id": a.get("zone_id"),
                         })
             
             self.stories[gid] = story

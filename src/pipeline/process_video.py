@@ -4,6 +4,7 @@ Processeur de vidéos pour le système de surveillance.
 '''
 import cv2
 import json
+import logging
 from pathlib import Path
 
 from src.detection.yolo_detector import YOLODetector
@@ -13,6 +14,9 @@ from src.utils.orientation import ManualOrientationDetector
 from src.zones.zone_manager import ZoneManager
 from src.alerts.alert_manager import AlertManager
 from src.reid.feature_extractor import FeatureExtractor
+
+
+logger = logging.getLogger(__name__)
 
 
 class VideoProcessor:
@@ -61,11 +65,22 @@ class VideoProcessor:
             self.reid_enabled = False
             
         self.show_video = show_video
+
+    def _reset_state_for_new_video(self) -> None:
+        """Reset per-video state when reusing a single processor instance."""
+        try:
+            # Avoid intrusions leaking between videos when the processor is reused.
+            self.alert_manager.active_intrusions.clear()
+        except Exception:
+            pass
     
     def process(self, video_path: str):
         """
         Traite une vidéo en 2 phases
         """
+        # When reusing a processor across multiple videos, clear per-video state.
+        self._reset_state_for_new_video()
+
         video_path = Path(video_path)
         video_id = video_path.stem
         
@@ -174,6 +189,9 @@ class VideoProcessor:
             bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
         )
         
+        frame_errors = 0
+        logged_errors = 0
+
         try:
             while True:
                 ret, frame = cap.read()
@@ -275,10 +293,25 @@ class VideoProcessor:
                     print("\n[PHASE 2] Interruption")
                     break
                 except Exception as e:
-                    # Continuer même si erreur sur une frame
+                    # Continuer même si erreur sur une frame, mais ne pas masquer totalement.
+                    frame_errors += 1
+                    if logged_errors < 3:
+                        logged_errors += 1
+                        logger.exception(
+                            "Erreur pendant le traitement d'une frame (video_id=%s, frame_id=%s)",
+                            video_id,
+                            frame_id,
+                        )
                     continue
         finally:
             pbar.close()
+
+        if frame_errors:
+            logger.warning(
+                "%d erreur(s) frame ignorée(s) pour video_id=%s (voir stacktraces des 3 premières)",
+                frame_errors,
+                video_id,
+            )
         
         return {
             "frames_processed": frame_id,
@@ -366,8 +399,8 @@ class VideoProcessor:
             
             cv2.imshow(f"Tracking - {video_id}", display)
             
-        except Exception as e:
-            pass
+        except Exception:
+            logger.exception("Erreur affichage frame (video_id=%s, frame_id=%s)", video_id, frame_id)
     
     def _save_trajectories(self, video_id, tracker, traj_path, stats, rotation_k, sync_offset=0.0):
         """Sauvegarde finale des trajectoires"""
@@ -405,11 +438,17 @@ class VideoProcessor:
             print(f"[SAVE] ✓ Taille: {file_size_kb:.1f} KB")
             print(f"[SAVE] ✓ Fichier: {traj_path}")
             
-        except Exception as e:
-            print(f"[SAVE] ❌ Erreur: {e}")
+        except Exception:
+            logger.exception("Erreur sauvegarde trajectoires (video_id=%s, out=%s)", video_id, traj_path)
+            print("[SAVE] ❌ Erreur lors de la sauvegarde (voir logs)")
 
 
-def process_video(video_path: str, show_video=False, event_output_file: str | None = None):
+def process_video(
+    video_path: str,
+    show_video: bool = False,
+    event_output_file: str | None = None,
+    processor: VideoProcessor | None = None,
+):
     """
     Point d'entrée simple
     
@@ -417,5 +456,9 @@ def process_video(video_path: str, show_video=False, event_output_file: str | No
         video_path: Chemin de la vidéo
         show_video: Afficher la vidéo pendant le traitement
     """
-    processor = VideoProcessor(show_video=show_video, event_output_file=event_output_file)
+    if processor is None:
+        processor = VideoProcessor(show_video=show_video, event_output_file=event_output_file)
+    else:
+        # Keep caller expectations: allow overriding visualization per call.
+        processor.show_video = bool(show_video)
     return processor.process(video_path)

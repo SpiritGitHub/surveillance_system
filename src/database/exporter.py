@@ -18,7 +18,8 @@ def export_personnes_from_trajectories(
     trajectories_dir: str | Path = "data/trajectories",
     output_csv: str | Path = "database/personnes.csv",
 ) -> dict[str, Any]:
-    """Build a global person table from trajectories.
+    """
+    Build a global person table from trajectories.
 
     Groups by global_id when present, otherwise keeps per-track rows.
     """

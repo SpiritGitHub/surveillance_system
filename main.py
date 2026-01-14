@@ -5,13 +5,12 @@ from pathlib import Path
 import time
 import logging
 import sys
+import argparse
 
-# Désactiver les logs externes
-logging.basicConfig(level=logging.CRITICAL)
-
-from src.pipeline.process_video import process_video
+from src.pipeline.process_video import VideoProcessor
 from src.pipeline.global_matching import run_global_matching
 from src.utils.trajectory_validator import TrajectoryValidator
+from src.utils.logger import setup_logging
 from src.utils.run_report import write_run_report
 from src.utils.event_enricher import enrich_events_with_global_ids
 from src.utils.embeddings_exporter import export_embeddings_from_trajectories
@@ -19,13 +18,41 @@ from src.zones.intrusion_reanalyzer import reanalyze_intrusions_from_trajectorie
 from src.database.exporter import export_database
 
 
-def main(force_reprocess=False):
+logger = logging.getLogger(__name__)
+
+
+def _configure_external_loggers(quiet: bool) -> None:
+    """Reduce noise from external libs without silencing our own logs."""
+    if not quiet:
+        return
+    for name in [
+        "ultralytics",
+        "googleapiclient",
+        "google_auth_oauthlib",
+        "google.auth",
+        "urllib3",
+    ]:
+        try:
+            logging.getLogger(name).setLevel(logging.WARNING)
+        except Exception:
+            pass
+
+
+def main(force_reprocess: bool = False, log_level: str = "INFO", quiet_external: bool = True):
     """
     Traitement intelligent de toutes les vidéos
     
     Args:
         force_reprocess: Forcer le retraitement même si déjà fait
     """
+    # Logging: file + console, configurable via CLI.
+    setup_logging(log_name="run")
+    try:
+        logging.getLogger().setLevel(getattr(logging, str(log_level).upper(), logging.INFO))
+    except Exception:
+        logging.getLogger().setLevel(logging.INFO)
+    _configure_external_loggers(quiet=quiet_external)
+
     from tqdm import tqdm
     
     # 1. VÉRIFICATION PRÉALABLE
@@ -49,7 +76,7 @@ def main(force_reprocess=False):
     try:
         events_file.touch(exist_ok=True)
     except Exception:
-        pass
+        logger.warning("Impossible de créer %s", events_file)
 
     # 2. DÉTERMINER QUOI TRAITER
     if force_reprocess:
@@ -107,6 +134,9 @@ def main(force_reprocess=False):
     total_time = 0
     per_video_stats = {}
     
+    # Reuse a single processor across videos to avoid reloading YOLO/ReID each time.
+    processor = VideoProcessor(show_video=False, event_output_file=str(events_file))
+
     for video_path in tqdm(videos_to_process, desc="Traitement global", unit="vidéo", ncols=100):
         print(f"\n{'='*70}")
         print(f"📹 {video_path.name}")
@@ -115,11 +145,7 @@ def main(force_reprocess=False):
         start = time.time()
         
         try:
-            stats = process_video(
-                str(video_path),
-                show_video=False,
-                event_output_file=str(events_file)
-            )
+            stats = processor.process(str(video_path))
             
             elapsed = time.time() - start
             total_time += elapsed
@@ -133,7 +159,8 @@ def main(force_reprocess=False):
             print("\n⏸️  Interruption utilisateur")
             break
         except Exception as e:
-            print(f"\n❌ Erreur: {str(e)[:200]}")
+            logger.exception("Erreur traitement vidéo: %s", video_path)
+            print(f"\n❌ Erreur: {str(e)[:200]} (détails dans les logs)")
             errors += 1
     
     # 5. RÉSUMÉ FINAL
@@ -254,6 +281,7 @@ def main(force_reprocess=False):
             out_dir="database",
         )
     except Exception as e:
+        logger.exception("Erreur export database")
         db_info = {"error": str(e)}
 
     try:
@@ -291,10 +319,26 @@ def main(force_reprocess=False):
 
 
 if __name__ == "__main__":
-    # Vérifier les arguments
-    force = "--force" in sys.argv or "-f" in sys.argv
-    
+    parser = argparse.ArgumentParser(description="Surveillance System - Pipeline principal")
+    parser.add_argument("--force", "-f", action="store_true", help="Forcer le retraitement des vidéos")
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        help="Niveau de logs (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+    parser.add_argument(
+        "--no-quiet-external",
+        action="store_true",
+        help="Ne pas réduire les logs des librairies externes",
+    )
+
+    args = parser.parse_args()
+
     try:
-        main(force_reprocess=force)
+        main(
+            force_reprocess=bool(args.force),
+            log_level=str(args.log_level),
+            quiet_external=not bool(args.no_quiet_external),
+        )
     except KeyboardInterrupt:
         print("\n\n⏹️  Arrêt demandé")

@@ -37,7 +37,7 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.5, max_embeddi
     
     # 1. Load all tracks
     print(f"Loading {len(json_files)} trajectory files...")
-    all_tracks = [] # (video_id, track_id, embeddings, timestamp)
+    all_tracks = []  # items: {video_id, track_id, embeddings, timestamp, file_path, data, track_ref}
     
     for jf in json_files:
         try:
@@ -66,7 +66,8 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.5, max_embeddi
                         "embeddings": embeddings,
                         "timestamp": first_frame,
                         "file_path": jf,
-                        "data": data # Keep ref to data to update it
+                        "data": data,  # Keep ref to data to save it later
+                        "track_ref": track,  # Direct ref to update without O(n) search
                     })
         except Exception as e:
             print(f"Error loading {jf}: {e}")
@@ -91,16 +92,14 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.5, max_embeddi
         
         global_id = matcher.match_track(emb, track["timestamp"])
         
-        # Update track in memory
-        # We need to find the track in the original data structure
-        # We have a ref to 'data' in the list item
-        
-        # Find the specific track object in the data['trajectories'] list
-        # This is a bit inefficient but safe
-        for t in track["data"]["trajectories"]:
-            if t["track_id"] == track["track_id"]:
-                t["global_id"] = global_id
-                break
+        # Update track in memory (O(1))
+        try:
+            track_ref = track.get("track_ref")
+            if isinstance(track_ref, dict):
+                track_ref["global_id"] = global_id
+        except Exception:
+            # Fallback: leave track unchanged (will just reduce enrichment quality)
+            pass
         
         files_to_save[track["file_path"]] = track["data"]
 
