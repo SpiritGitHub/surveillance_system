@@ -85,6 +85,5 @@ Le système va :
 
 ## 📚 Documentation Détaillée
 
-Pour comprendre exactement comment fonctionne chaque fichier du code, consultez le fichier **[PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md)**.
 
 Pour une documentation technique exhaustive (structure + APIs + formats + flux end-to-end), voir **[TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md)**.
