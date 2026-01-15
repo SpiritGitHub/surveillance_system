@@ -1,104 +1,86 @@
-# Surveillance System — Détection, tracking et analyse multi-caméras
+# Surveillance System — Détection, tracking et analyse multi‑caméras
 
-Ce projet transforme des vidéos multi-caméras en données structurées (trajectoires, identités globales, événements) pour faciliter l'analyse et l'audit (qui est passé où, quand, et pendant combien de temps).
+Pipeline Python pour transformer des vidéos multi‑caméras en données structurées (trajectoires, identités globales, événements) afin de faciliter l'analyse et l'audit : qui est passé où, quand, et pendant combien de temps.
 
-L'objectif de ce README est d'être “GitHub-friendly” : installation, lancement, structure attendue, et surtout ce qui n'est pas versionné (données/credentials/sorties).
+Ce README vise un usage “GitHub‑friendly” : clonage, installation, configuration locale (données/credentials), lancement, sorties, et règles de confidentialité.
 
-## Fonctionnalités (résumé)
+## Sommaire
 
-- Détection multi-classes (YOLOv8) : personnes, véhicules, bagages
+- Fonctionnalités
+- Ce qui est versionné / ignoré
+- Quickstart (Windows)
+- Prérequis
+- Installation
+- Données & configuration locale
+- Exécution
+- Sorties
+- Notebooks
+- Dépannage
+- Sécurité & confidentialité
+
+## Fonctionnalités
+
+- Détection multi‑classes (YOLOv8) : personnes, véhicules, bagages
 - Tracking par classe (DeepSORT) et export des trajectoires
-- Zones interdites (polygones) + événements d'intrusion (seuil de durée ou immédiat)
-- Ré-identification multi-cam (Re-ID) pour `person` → `global_id`
-- Synchronisation multi-cam par offsets → timeline commune `t_sync`
-- Enrichissement des événements (prev/next camera) + déduplication (zones recouvrantes)
+- Zones interdites (polygones) + événements d'intrusion (immédiat ou seuil de durée)
+- Ré‑identification multi‑cam (Re‑ID) pour `person` → `global_id`
+- Synchronisation multi‑cam par offsets → timeline commune `t_sync`
+- Enrichissement (prev/next camera) + déduplication (zones recouvrantes)
 - Exports “database” (CSV) + rapport de run (JSON)
 
-## Ce qui est versionné / ignoré (important pour GitHub)
+## Ce qui est versionné / ignoré
 
-Le dépôt est conçu pour garder le code sur GitHub tout en évitant de pousser des données lourdes/sensibles.
+Le dépôt est conçu pour garder le code sur GitHub tout en évitant de pousser des données lourdes ou sensibles.
 
-- Versionné : code (`src/`, `main.py`, `main_v.py`), `requirements.txt`, ce `README.md`
+- Versionné : code (`src/`, `main.py`, `main_v.py`), `requirements.txt`, `README.md`
 - Ignoré par Git (`.gitignore`) :
-	- `data/` (vidéos, trajectoires, embeddings, zones, metadata…)
-	- `outputs/` (events, reports, logs…)
-	- `configs/` (fichiers de config + credentials OAuth)
-	- `doc/` (documentation interne locale)
-	- `oauth.txt`, `.env`, logs, caches…
+  - `data/` (vidéos, frames, trajectoires, embeddings, zones, metadata…)
+  - `outputs/` (events, reports, logs…)
+  - `configs/` (fichiers de config + credentials OAuth)
+  - `doc/` (documentation interne locale)
+  - `oauth.txt`, `.env`, logs, caches…
 
-Conséquence : si tu clones le repo depuis GitHub, tu dois (re)créer `data/` et `configs/` en local (voir sections ci-dessous).
+Conséquence : après clonage, tu dois recréer/peupler `data/` et `configs/` en local.
 
-## Prérequis
+## Quickstart (Windows)
 
-- Windows 10/11 (le projet tourne aussi généralement sous Linux, mais ce repo est principalement utilisé sous Windows)
-- Python 3.10+ (recommandé : 3.11)
-- Accès aux vidéos `*.mp4`
+1) Cloner
 
-### Accélération (optionnel)
+```powershell
+git clone https://github.com/SpiritGitHub/surveillance_system.git
+cd surveillance_system
+```
 
-- GPU NVIDIA : recommandé si tu veux accélérer YOLO/ReID (PyTorch CUDA)
-- CPU only : fonctionne, mais plus lent
+Alternative (SSH) :
 
-Note : le `requirements.txt` de ce workspace contient des versions PyTorch “CUDA” (`+cu121`). Sur une machine sans CUDA, installe plutôt une version CPU de PyTorch et adapte l'installation (voir “Installation”).
+```powershell
+git clone git@github.com:SpiritGitHub/surveillance_system.git
+cd surveillance_system
+```
 
-## Installation
+Mettre à jour le code :
 
-### 1) Créer un environnement virtuel
+```powershell
+git pull
+```
 
-```bash
+2) Créer/activer un venv
+
+```powershell
 python -m venv venv
 venv\Scripts\activate
 python -m pip install --upgrade pip
 ```
 
-### 2) Installer les dépendances
+3) Installer les dépendances
 
-Option A — Machine avec CUDA (si compatible avec ton poste) :
-
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
-Option B — Machine CPU only :
+4) Préparer l'arborescence locale (minimum)
 
-1) Installer PyTorch CPU :
-
-```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-```
-
-2) Installer le reste :
-
-```bash
-pip install -r requirements.txt
-```
-
-Si pip refuse à cause des wheels `+cu121`, remplace les lignes `torch/torchvision/torchaudio` dans `requirements.txt` par des versions CPU (ou supprime-les du fichier et installe PyTorch séparément comme ci-dessus).
-
-## Données & configuration attendues
-
-Comme `data/` et `configs/` sont ignorés par Git, voici l'arborescence minimale attendue en local :
-
-```text
-data/
-	videos/                      # fichiers .mp4
-	trajectories/                # généré par le pipeline
-	embeddings/                  # généré par le pipeline
-	camera_offsets_timestamp.json    # optionnel (préféré)
-	camera_offsets_durree.json       # optionnel (fallback)
-	zones_interdites.json            # recommandé (zones d'intrusion)
-	video_orientations.json          # optionnel (rotation par caméra)
-
-configs/
-	cameras.json                 # optionnel selon usages
-	camera_network.json          # optionnel (topologie/gating)
-	credentials.json             # optionnel (Google Drive)
-	token.json                   # généré par OAuth
-```
-
-Création rapide (Windows) :
-
-```bash
+```powershell
 mkdir data\videos
 mkdir data\trajectories
 mkdir outputs\events
@@ -106,14 +88,92 @@ mkdir outputs\reports
 mkdir configs
 ```
 
-### Réseau de caméras (topologie) — optionnel
+5) Ajouter des vidéos `*.mp4` dans `data\videos\`, puis lancer
 
-Le “gating” topologique sert à empêcher des associations ReID impossibles (caméras non atteignables).
+```powershell
+python main.py
+```
+
+## Prérequis
+
+- OS : Windows 10/11 (fonctionne généralement sous Linux, mais usage principal sous Windows)
+- Python : 3.10+ (recommandé : 3.11)
+- Accès aux vidéos `*.mp4`
+
+### Accélération (optionnel)
+
+- GPU NVIDIA : recommandé pour accélérer YOLO/ReID (PyTorch CUDA)
+- CPU only : fonctionne, mais plus lent
+
+Note : `requirements.txt` contient des versions PyTorch CUDA (`+cu121`). Sur une machine sans CUDA, adapte l'installation (voir section suivante).
+
+## Installation
+
+### 1) Environnement virtuel
+
+```powershell
+python -m venv venv
+venv\Scripts\activate
+python -m pip install --upgrade pip
+```
+
+### 2) Dépendances
+
+Option A — machine avec CUDA (si compatible) :
+
+```powershell
+pip install -r requirements.txt
+```
+
+Option B — machine CPU only :
+
+1) Installer PyTorch CPU :
+
+```powershell
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+2) Installer le reste :
+
+```powershell
+pip install -r requirements.txt
+```
+
+Si pip refuse à cause des wheels `+cu121`, remplace/supprime les lignes `torch/torchvision/torchaudio` dans `requirements.txt` et installe PyTorch séparément (comme ci‑dessus).
+
+## Données & configuration locale
+
+Comme `data/` et `configs/` sont ignorés par Git, voici l'arborescence minimale attendue en local :
+
+```text
+data/
+	videos/                          # fichiers .mp4
+	trajectories/                    # généré par le pipeline
+	embeddings/                      # généré par le pipeline
+	camera_offsets_timestamp.json    # optionnel (préféré)
+	camera_offsets_durree.json       # optionnel (fallback)
+	zones_interdites.json            # recommandé (zones d'intrusion)
+	video_orientations.json          # optionnel (rotation par caméra)
+
+configs/
+	cameras.json                     # optionnel selon usages
+	camera_network.json              # optionnel (topologie/gating)
+	credentials.json                 # optionnel (Google Drive)
+	token.json                       # généré par OAuth
+```
+
+### Modèles
+
+Le dépôt contient déjà des poids YOLO dans `models/yolo/` (ex : `yolov8n.pt`). Les éléments Re‑ID sont sous `models/reid/`.
+
+### Réseau de caméras (topologie / gating) — optionnel
+
+Le “gating” topologique sert à empêcher des associations Re‑ID impossibles (caméras non atteignables).
 
 - Fichier (local) : `configs/camera_network.json`
-- Format d'arêtes :
-	- Sans temps : `{ "from": "CAMERA_A", "to": "CAMERA_B" }`
-	- Avec temps : `{ "from": "CAMERA_A", "to": "CAMERA_B", "min_s": 3, "max_s": 120 }`
+- Format des arêtes :
+  - Sans temps : `{ "from": "CAMERA_A", "to": "CAMERA_B" }`
+  - Avec temps : `{ "from": "CAMERA_A", "to": "CAMERA_B", "min_s": 3, "max_s": 120 }`
 
 Si tu ne veux pas de gating, mets `"edges": []`.
 
@@ -121,19 +181,19 @@ Si tu ne veux pas de gating, mets `"edges": []`.
 
 Pour définir les zones, utilise l'outil visuel :
 
-```bash
+```powershell
 python src/zones/zone_visual.py
 ```
 
 Le fichier de sortie est généralement `data/zones_interdites.json`.
 
-Astuce (anti-doublons) : si deux caméras couvrent exactement la même zone physique, donne le même `name` aux zones correspondantes pour faciliter la déduplication.
+Astuce (anti‑doublons) : si deux caméras couvrent la même zone physique, utilise le même `name` pour faciliter la déduplication.
 
-## Lancer le pipeline
+## Exécution
 
 ### Pipeline complet (traitement + matching + exports)
 
-```bash
+```powershell
 python main.py
 ```
 
@@ -141,15 +201,15 @@ Options utiles :
 
 - Retraiter toutes les vidéos :
 
-```bash
+```powershell
 python main.py --force
 ```
 
-Important : même si aucune vidéo n'est à retraiter, `main.py` exécute quand même la fin de chaîne (matching global, enrichissement, rapport, exports) tant que `data/trajectories/` existe.
+Important : même si aucune vidéo n'est à retraiter, `main.py` exécute la fin de chaîne (matching global, enrichissement, rapport, exports) tant que `data/trajectories/` existe.
 
 ### Version “V” (pipeline + dashboard)
 
-```bash
+```powershell
 python main_v.py
 ```
 
@@ -159,31 +219,37 @@ Exemples :
 - Pipeline only (sans UI) : `python main_v.py --no-dashboard`
 - Dashboard only (sans retraitement) : `python main_v.py --dashboard-only`
 - Offsets pour la synchro du dashboard :
-	- `--offset-source trajectory` (défaut)
-	- `--offset-source timestamp` (lit `data/camera_offsets_timestamp.json`)
-	- `--offset-source duration` (lit `data/camera_offsets_durree.json`)
-	- `--offset-source none`
-	- `--offset-source custom --offset-file path\\to\\offsets.json`
+  - `--offset-source trajectory` (défaut)
+  - `--offset-source timestamp` (lit `data/camera_offsets_timestamp.json`)
+  - `--offset-source duration` (lit `data/camera_offsets_durree.json`)
+  - `--offset-source none`
+  - `--offset-source custom --offset-file path\\to\\offsets.json`
 
 ## Sorties
 
-- Trajectoires : `data/trajectories/*.json` (inclut timestamps `t_sync` et embeddings ReID)
+- Trajectoires : `data/trajectories/*.json` (inclut `t_sync` + embeddings Re‑ID)
 - Embeddings exportés : `data/embeddings/<VIDEO_ID>/*.npy` + `data/embeddings/embeddings_index_<RUN_ID>.csv`
 - Événements : `outputs/events/events_<RUN_ID>.jsonl`
 - Rapport : `outputs/reports/run_report_<RUN_ID>.json` + `outputs/reports/latest.json`
 - Exports CSV :
-	- `database/personnes.csv`
-	- `database/evenements.csv`
-	- `database/classes.csv`
+  - `database/personnes.csv`
+  - `database/evenements.csv`
+  - `database/classes.csv`
 
-### Pourquoi certains fichiers peuvent être vides ?
+### Fichiers vides : cas fréquents
 
-- Les events (`outputs/events/...`) et `database/evenements.csv` peuvent être vides si aucune intrusion n'a été détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone…).
+- `outputs/events/...` et `database/evenements.csv` peuvent être vides si aucune intrusion n'est détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone…).
 - `database/classes.csv` est généré à partir des trajectoires (même si 0 vidéo retraitée).
 
-## Notebooks (exploration)
+## Notebooks
 
 Les notebooks dans `notebooks/` servent à inspecter/valider les exports CSV (personnes, événements, classes, vidéos).
+
+## Dépannage
+
+- Erreur d'installation PyTorch / CUDA : utilise l'installation CPU (section “Installation”), ou aligne les versions CUDA/PyTorch avec ton poste.
+- “Aucune vidéo retraitée” : vérifie `data/videos/` et/ou utilise `--force`.
+- Pas d'événements : vérifie que `data/zones_interdites.json` existe et que les seuils/zones sont cohérents.
 
 ## Sécurité & confidentialité
 
@@ -191,5 +257,5 @@ Ce projet traite des vidéos potentiellement sensibles.
 
 - Ne versionne pas les vidéos/frames/trajectoires/embeddings sur GitHub.
 - Ne versionne pas `configs/credentials.json` et `configs/token.json`.
-- Utilise des chemins locaux ou des secrets CI si tu automatises.
+- Si tu automatises (CI), utilise des secrets et des chemins locaux/volumes dédiés.
 
