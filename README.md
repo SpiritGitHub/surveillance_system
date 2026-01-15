@@ -28,6 +28,33 @@ Le système détecte automatiquement :
 - Regroupement des trajectoires d'une même personne entre caméras.
 - Attribution d'un identifiant global (global_id).
 
+### 5) Réseau de caméras (topologie)
+
+Pour améliorer le tracking multi-caméras, le système peut utiliser une **topologie** (qui voit “avant/après” qui) pour éviter des associations ReID impossibles.
+
+- Configuration : [configs/camera_network.json](configs/camera_network.json)
+- Effet : le matching global ReID est “gated” par la topologie (on ne compare pas une identité avec une caméra qui ne peut pas être atteinte).
+
+Le format des `edges` peut être :
+
+- **Sans temps (recommandé si tu n'as pas de durées fiables)** : `{ "from": "CAMERA_A", "to": "CAMERA_B" }`
+- **Avec temps (optionnel)** : `{ "from": "CAMERA_A", "to": "CAMERA_B", "min_s": 3, "max_s": 120 }`
+
+Si tu ne veux pas de gating topologique, tu peux vider la liste `edges` (comportement permissif, comme avant).
+
+### 6) Enrichissement des événements (avant/après + déduplication)
+
+Après le global matching, le système enrichit les événements d'intrusion avec :
+
+- `global_id` (identité multi-cam)
+- `prev_camera` / `next_camera` (où la personne est vue avant/après l'infraction, basé sur `t_sync`)
+- `prev_camera_candidates` / `next_camera_candidates` (voisins possibles selon le réseau de caméras)
+
+Cas des caméras très recouvrantes (même scène / même zone) :
+
+- Une déduplication est appliquée pour éviter les doublons d'événements quand la **même zone physique** est définie sur deux caméras voisines.
+- Recommandation : donne le **même `name`** aux deux zones (dans `data/zones_interdites.json`) si elles représentent la même zone physique.
+
 ## Utilisation
 
 ### Étape 1 : Installation

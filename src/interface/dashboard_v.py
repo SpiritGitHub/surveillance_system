@@ -37,18 +37,42 @@ def _apply_rotation(frame: np.ndarray, rotation_deg: int) -> np.ndarray:
         return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return frame
 
+
+def _find_offset_for_video(video_name: str, offsets: dict) -> float | None:
+    """Best-effort mapping between video filename and offsets file keys."""
+    if not offsets:
+        return None
+    for key, val in offsets.items():
+        try:
+            if video_name in str(key):
+                return float(val)
+        except Exception:
+            continue
+    return None
+
 class DashboardV:
-    def __init__(self, data_dir="data"):
+    def __init__(
+        self,
+        data_dir="data",
+        *,
+        offset_source: str = "trajectory",
+        offset_file: str | None = None,
+    ):
         self.data_dir = Path(data_dir)
         self.videos_dir = self.data_dir / "videos"
         self.traj_dir = self.data_dir / "trajectories"
         self.offsets_durree_file = self.data_dir / "camera_offsets_durree.json"
         self.offsets_timestamp_file = self.data_dir / "camera_offsets_timestamp.json"
+        self.offset_source = str(offset_source)
+        self.offset_file = offset_file
         
         self.analyzer = GlobalAnalyzer(data_dir)
         
         self.videos = {} # video_id -> {cap, offset, status, data, current_frame_idx}
         self.global_time = 0.0
+        # We start the dashboard at a synchronized time where every video has started.
+        # Concretely, we pick t_sync_start = max(raw_offsets) and seek each capture accordingly.
+        self.t_sync_start = 0.0
         self.target_fps = 30.0
         self.running = False
 
@@ -59,9 +83,10 @@ class DashboardV:
         # 0. Run Global Analysis
         self.analyzer.load_data()
         
-        # 1. Load Offsets (prefer timestamp offsets, fallback to duration offsets)
+        # 1. Load Offsets (timestamp/duration + optional custom)
         offsets_timestamp = {}
         offsets_durree = {}
+        offsets_custom = {}
 
         if self.offsets_timestamp_file.exists():
             try:
@@ -76,6 +101,14 @@ class DashboardV:
                     offsets_durree = json.load(f)
             except Exception:
                 offsets_durree = {}
+
+        if self.offset_file:
+            try:
+                custom_path = Path(self.offset_file)
+                if custom_path.exists():
+                    offsets_custom = json.loads(custom_path.read_text(encoding="utf-8"))
+            except Exception:
+                offsets_custom = {}
         
         # 2. Find Videos and Load Data
         video_files = list(self.videos_dir.glob("*.mp4"))
@@ -87,23 +120,30 @@ class DashboardV:
             # We need to match them.
             video_name = vpath.stem
 
-            # Default offset from config (will be overridden by trajectory sync_offset if present)
+            # Raw sync offset selection for the dashboard.
+            # - trajectory: use trajectories' sync_offset first, fallback timestamp then duration
+            # - timestamp: use timestamp file
+            # - duration: use duration file
+            # - custom: use --offset-file json
+            # - none: 0 for all
             offset = 0.0
-            for key, val in offsets_timestamp.items():
-                if video_name in key:
-                    try:
-                        offset = float(val)
-                    except Exception:
-                        offset = 0.0
-                    break
-            if offset == 0.0:
-                for key, val in offsets_durree.items():
-                    if video_name in key:
-                        try:
-                            offset = float(val)
-                        except Exception:
-                            offset = 0.0
-                        break
+            if self.offset_source == "timestamp":
+                found = _find_offset_for_video(video_name, offsets_timestamp)
+                offset = float(found) if found is not None else 0.0
+            elif self.offset_source == "duration":
+                found = _find_offset_for_video(video_name, offsets_durree)
+                offset = float(found) if found is not None else 0.0
+            elif self.offset_source == "custom":
+                found = _find_offset_for_video(video_name, offsets_custom)
+                offset = float(found) if found is not None else 0.0
+            elif self.offset_source == "none":
+                offset = 0.0
+            else:
+                # trajectory (default): temporary value; may be overridden by traj_data sync_offset.
+                found = _find_offset_for_video(video_name, offsets_timestamp)
+                if found is None:
+                    found = _find_offset_for_video(video_name, offsets_durree)
+                offset = float(found) if found is not None else 0.0
             
             # Load Trajectory Data
             # We assume trajectory file has same name as video_name?
@@ -119,10 +159,11 @@ class DashboardV:
                     traj_data = json.load(f)
 
                 # Prefer the actual sync_offset used during processing (ensures Dashboard matches pipeline)
-                try:
-                    offset = float(traj_data.get("sync_offset", offset))
-                except Exception:
-                    pass
+                if self.offset_source in ("trajectory", "auto"):
+                    try:
+                        offset = float(traj_data.get("sync_offset", offset))
+                    except Exception:
+                        pass
 
                 try:
                     rotation_applied = int(traj_data.get("rotation_applied", 0))
@@ -132,22 +173,27 @@ class DashboardV:
                 # Index tracks by frame for fast lookup during playback
                 for track in traj_data.get("trajectories", []):
                     gid_val = _safe_int(track.get("global_id"))
-                    gid = gid_val if gid_val is not None else track.get("track_id")
+                    track_id = track.get("track_id")
+                    class_name = track.get("class_name") or "person"
                     for fr in track["frames"]:
                         fid = fr["frame"]
                         if fid not in tracks_by_frame:
                             tracks_by_frame[fid] = []
                         
                         tracks_by_frame[fid].append({
-                            "id": gid,
+                            "global_id": gid_val,
+                            "track_id": track_id,
                             "bbox": fr["bbox"],
-                            "type": "person" # Default
+                            "class_name": class_name,
                         })
 
             # Cache capture properties + compute scale factors once per video
             cap = cv2.VideoCapture(str(vpath))
             w_orig = float(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
             h_orig = float(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+            fps = float(cap.get(cv2.CAP_PROP_FPS) or self.target_fps)
+            total_frames = float(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+            duration_s = (total_frames / fps) if fps > 0 and total_frames > 0 else None
 
             # If we rotate by 90/270, width/height swap
             rot = int(rotation_applied) % 360
@@ -166,19 +212,98 @@ class DashboardV:
             self.videos[video_name] = {
                 "path": str(vpath),
                 "cap": cap,
-                "offset": offset,
+                # raw_offset is the original sync offset (seconds) used when writing t_sync.
+                "raw_offset": float(offset),
                 "rotation_applied": rotation_applied,
-                "status": "waiting", # waiting, playing, finished
+                "status": "playing", # playing, finished
                 "tracks": tracks_by_frame,
                 "frame_count": 0,
+                "fps": fps,
+                "total_frames": int(total_frames) if total_frames else None,
+                "duration_s": duration_s,
                 "sx": sx,
                 "sy": sy,
             }
             print(f"Loaded {video_name}: Offset={offset:.1f}s | Rotation={rotation_applied}°")
 
+        # Pick a synchronized start time so every camera has frames to show.
+        # Ideally, we pick t_sync_start inside the intersection of [offset, offset+duration] across videos.
+        if self.videos:
+            starts = []
+            ends = []
+            for v in self.videos.values():
+                raw_offset = float(v.get("raw_offset", 0.0))
+                starts.append(raw_offset)
+                dur = v.get("duration_s")
+                if dur is not None:
+                    try:
+                        ends.append(raw_offset + float(dur))
+                    except Exception:
+                        pass
+
+            max_start = max(starts) if starts else 0.0
+            min_end = min(ends) if ends else None
+
+            if min_end is not None and max_start <= min_end:
+                self.t_sync_start = float(max_start)
+                print(f"[Dashboard] t_sync_start (overlap) = {self.t_sync_start:.1f}s")
+            else:
+                # No global overlap across all videos; fallback to max offset (everyone has started)
+                # Some videos might already be finished; we'll clamp the seek.
+                self.t_sync_start = float(max_start)
+                print(
+                    f"[Dashboard] WARNING: pas de chevauchement commun entre toutes les vidéos. "
+                    f"Fallback t_sync_start={self.t_sync_start:.1f}s (seek + clamp)."
+                )
+
+            for vid_id, v in self.videos.items():
+                fps = float(v.get("fps", self.target_fps) or self.target_fps)
+                raw_offset = float(v.get("raw_offset", 0.0))
+                total_frames = v.get("total_frames")
+
+                local_start_s = self.t_sync_start - raw_offset
+                if local_start_s < 0:
+                    local_start_s = 0.0
+
+                # OpenCV frame index is 0-based; our pipeline frame_id is 1-based.
+                # We set cap to (frame_id-1), and keep frame_count aligned to frame_id-1.
+                start_frame_1based = int(round(local_start_s * fps)) + 1
+                cap_pos_0based = max(0, start_frame_1based - 1)
+
+                # Clamp seek to video length if known.
+                if total_frames is not None:
+                    try:
+                        total_frames_i = int(total_frames)
+                        if total_frames_i > 1 and cap_pos_0based >= total_frames_i:
+                            cap_pos_0based = total_frames_i - 1
+                    except Exception:
+                        pass
+
+                # Seek the capture to local_start_s.
+                # On some Windows/OpenCV builds, seeking by milliseconds is more reliable than by frames.
+                cap = v.get("cap")
+                try:
+                    if cap is not None:
+                        cap.set(cv2.CAP_PROP_POS_MSEC, float(local_start_s) * 1000.0)
+                except Exception:
+                    pass
+                try:
+                    if cap is not None:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, cap_pos_0based)
+                except Exception:
+                    pass
+                v["frame_count"] = cap_pos_0based
+                v["local_start_s"] = float(local_start_s)
+
+                print(f"[Dashboard] {vid_id}: t_sync_start={self.t_sync_start:.1f}s -> local_start={local_start_s:.1f}s (frame~{start_frame_1based})")
+
     def run(self):
         """Main playback loop."""
         self.running = True
+
+        if not self.videos:
+            print("[Dashboard] Aucun fichier .mp4 trouvé dans data/videos/. Rien à afficher.")
+            return
         
         # Calculate grid size
         n_videos = len(self.videos)
@@ -200,97 +325,185 @@ class DashboardV:
                 
                 for vid_id, vdata in self.videos.items():
                     cap = vdata["cap"]
-                    offset = vdata["offset"]
+                    raw_offset = float(vdata.get("raw_offset", 0.0))
                     rotation_applied = int(vdata.get("rotation_applied", 0))
                     sx = float(vdata.get("sx", 1.0))
                     sy = float(vdata.get("sy", 1.0))
-                
-                # Determine state
-                if self.global_time < offset:
-                    vdata["status"] = "waiting"
-                elif vdata["status"] != "finished":
-                    vdata["status"] = "playing"
-                
-                # Get Frame
-                frame = None
-                
-                if vdata["status"] == "waiting":
-                    # Black frame with text
-                    frame = np.zeros((360, 640, 3), dtype=np.uint8)
-                    wait_time = offset - self.global_time
-                    cv2.putText(frame, f"Starts in {wait_time:.1f}s", (50, 180), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                    active_videos += 1
-                    
-                elif vdata["status"] == "playing":
-                    ret, frame = cap.read()
-                    if ret:
-                        vdata["frame_count"] += 1
-                        active_videos += 1
+                    fps = float(vdata.get("fps", self.target_fps) or self.target_fps)
 
-                        # Apply same rotation as used during processing so bboxes align.
-                        frame = _apply_rotation(frame, rotation_applied)
-                        
-                        # Resize for grid (optional, but good for performance)
-                        frame = cv2.resize(frame, (640, 360))
-                        
-                        # Draw Detections
-                        # We need to know which frame number corresponds to current time?
-                        # Since we read sequentially, vdata["frame_count"] is the current frame index.
-                        # Note: frame_count starts at 1 usually in my logic, or 0? 
-                        # Let's assume 1-based index from YOLO.
-                        current_fid = vdata["frame_count"]
-                        
-                        detections = vdata["tracks"].get(current_fid, [])
-                        for det in detections:
-                            x1, y1, x2, y2 = det["bbox"]
+                    # In this dashboard mode, all videos start immediately (we pre-seeked them).
+                    if vdata.get("status") != "finished":
+                        vdata["status"] = "playing"
+                    
+                    # Get Frame
+                    frame = None
+                    
+                    if vdata["status"] == "playing":
+                        ret, frame = cap.read()
+                        if ret and frame is not None:
+                            vdata["frame_count"] += 1
+                            active_videos += 1
+
+                            # Apply same rotation as used during processing so bboxes align.
+                            try:
+                                frame = _apply_rotation(frame, rotation_applied)
+                            except Exception:
+                                # Fallback to original frame if rotation fails
+                                pass
                             
-                            sx1, sy1 = int(x1*sx), int(y1*sy)
-                            sx2, sy2 = int(x2*sx), int(y2*sy)
+                            # Resize for grid (optional, but good for performance)
+                            frame = cv2.resize(frame, (640, 360))
                             
-                            # Color based on ID (robust: works for int or str ids)
-                            color = _stable_color(det.get("id"))
+                            # Draw Detections
+                            # We read sequentially; frame_count matches the stored 1-based frame index.
+                            current_fid = vdata["frame_count"]
                             
-                            cv2.rectangle(frame, (sx1, sy1), (sx2, sy2), color, 2)
-                            cv2.putText(frame, f"ID {det['id']}", (sx1, sy1-5), 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-                            
-                            # Show History / Alerts if available
-                            story = self.analyzer.get_story(det["id"])
-                            if story:
-                                # Check for active alerts
-                                active_alert = None
-                                for alert in story["alerts"]:
-                                    # Simple check: is alert time close to current time?
-                                    if abs(alert["time"] - self.global_time) < 2.0: # Show for 2 seconds
-                                        active_alert = alert["zone"]
-                                        break
+                            detections = vdata["tracks"].get(current_fid, [])
+                            for det in detections:
+                                x1, y1, x2, y2 = det["bbox"]
                                 
-                                if active_alert:
-                                    cv2.putText(frame, f"ALERT: {active_alert}", (sx1, sy1-20), 
-                                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                                    
-                                # Show path summary (last 3 cameras)
-                                # Only show if mouse hover? Or always?
-                                # Always might be too much. Let's show only if alert or specific key?
-                                # Let's show simple text at bottom of bbox
-                                path_str = " -> ".join([p["camera"].replace("CAMERA_", "")[:3] for p in story["path"][-3:]])
-                                cv2.putText(frame, path_str, (sx1, sy2+15), 
-                                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-                                        
+                                sx1, sy1_ = int(x1 * sx), int(y1 * sy)
+                                sx2, sy2_ = int(x2 * sx), int(y2 * sy)
+
+                                global_id = det.get("global_id")
+                                track_id = det.get("track_id")
+                                class_name = det.get("class_name") or "person"
+
+                                # Color based on ID (global_id preferred, fallback to local track_id)
+                                color_key = global_id if global_id is not None else track_id
+                                color = _stable_color(color_key)
+
+                                # Zone intrusion (live check) for better visibility
+                                in_zones: list[str] = []
+                                try:
+                                    cx = int((x1 + x2) / 2)
+                                    cy = int((y1 + y2) / 2)
+                                    in_zones = self.analyzer.zone_manager.check_point_all_zones(cx, cy, camera_id=vid_id)
+                                except Exception:
+                                    in_zones = []
+
+                                box_color = (0, 0, 255) if in_zones else color
+                                thickness = 3 if in_zones else 2
+
+                                cv2.rectangle(frame, (sx1, sy1_), (sx2, sy2_), box_color, thickness)
+
+                                if global_id is not None:
+                                    label = f"GID {global_id}"
+                                else:
+                                    label = f"TID {track_id}"
+                                if class_name:
+                                    label = f"{label} | {class_name}"
+
+                                cv2.putText(
+                                    frame,
+                                    label,
+                                    (sx1, max(15, sy1_ - 5)),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5,
+                                    box_color,
+                                    1,
+                                )
+
+                                # If in zone, show zone name(s)
+                                if in_zones:
+                                    # Show first zone name (or ids) on bbox
+                                    zid = str(in_zones[0])
+                                    z = getattr(self.analyzer.zone_manager, "zones", {}).get(zid, {})
+                                    zname = z.get("name") if isinstance(z, dict) else None
+                                    zlabel = zname or zid
+                                    cv2.putText(
+                                        frame,
+                                        f"ALERTE: {zlabel}",
+                                        (sx1, min(350, sy2_ + 18)),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        0.6,
+                                        (0, 0, 255),
+                                        2,
+                                    )
+
+                                # Story overlay (only for global_id)
+                                if global_id is not None:
+                                    story = self.analyzer.get_story(global_id)
+                                else:
+                                    story = None
+                                if story:
+                                    # Show path summary (last 3 cameras)
+                                    path_str = " -> ".join(
+                                        [p["camera"].replace("CAMERA_", "")[:3] for p in story["path"][-3:]]
+                                    )
+                                    cv2.putText(
+                                        frame,
+                                        path_str,
+                                        (sx1, min(350, sy2_ + 35)),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        0.4,
+                                        (255, 255, 255),
+                                        1,
+                                    )
+                        else:
+                            vdata["status"] = "finished"
+                            frame = np.zeros((360, 640, 3), dtype=np.uint8)
+                            cv2.putText(
+                                frame,
+                                "Finished",
+                                (200, 180),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                1,
+                                (0, 0, 255),
+                                2,
+                            )
                     else:
-                        vdata["status"] = "finished"
                         frame = np.zeros((360, 640, 3), dtype=np.uint8)
-                        cv2.putText(frame, "Finished", (200, 180), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                
-                else: # Finished
-                    frame = np.zeros((360, 640, 3), dtype=np.uint8)
-                    cv2.putText(frame, "Finished", (200, 180), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                        cv2.putText(
+                            frame,
+                            "Finished",
+                            (200, 180),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1,
+                            (0, 0, 255),
+                            2,
+                        )
+
+                    # Ensure consistent tile format for stacking.
+                    if frame is None:
+                        frame = np.zeros((360, 640, 3), dtype=np.uint8)
+                    elif getattr(frame, "ndim", 0) == 2:
+                        try:
+                            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                        except Exception:
+                            frame = np.zeros((360, 640, 3), dtype=np.uint8)
+                    if frame.shape[0] != 360 or frame.shape[1] != 640:
+                        try:
+                            frame = cv2.resize(frame, (640, 360))
+                        except Exception:
+                            frame = np.zeros((360, 640, 3), dtype=np.uint8)
 
                     # Add label
-                    cv2.putText(frame, vid_id, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    status = vdata.get("status", "?")
+                    cv2.putText(
+                        frame,
+                        f"{vid_id} [{status}]",
+                        (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (255, 255, 255),
+                        2,
+                    )
+
+                    # Add local time hint
+                    if vdata.get("status") == "playing":
+                        local_t = (float(vdata.get("frame_count", 0)) / fps) if fps > 0 else 0.0
+                        t_sync = float(self.t_sync_start) + float(self.global_time)
+                        cv2.putText(
+                            frame,
+                            f"t={local_t:.1f}s  raw_offset={raw_offset:.1f}s  t_sync={t_sync:.1f}s",
+                            (10, 55),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.55,
+                            (200, 200, 200),
+                            1,
+                        )
+
                     frames_to_show.append(frame)
 
                 if active_videos == 0 and self.global_time > 10: # Allow some startup time
@@ -313,8 +526,15 @@ class DashboardV:
                 final_grid = np.vstack(grid_rows)
                 
                 # Add Global Time Overlay
-                cv2.putText(final_grid, f"Global Time: {self.global_time:.2f}s", (20, 50), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 3)
+                cv2.putText(
+                    final_grid,
+                    f"t_sync = {self.t_sync_start + self.global_time:.2f}s  (delta={self.global_time:.2f}s)",
+                    (20, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2,
+                    (0, 255, 255),
+                    3,
+                )
 
                 cv2.imshow("Dashboard V", final_grid)
                 

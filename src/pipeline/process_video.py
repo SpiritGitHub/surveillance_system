@@ -106,14 +106,7 @@ class VideoProcessor:
         
         print(f"[INFO] {total_frames} frames @ {fps:.1f} fps ({width}x{height})")
         
-        # Récupérer l'offset de synchronisation
-        # Le nom dans le JSON semble être le nom du fichier sans extension mais avec _full ?
-        # Ou juste le nom de la caméra ?
-        # Dans le fichier exemple: "CAMERA_DEBUT_COULOIR_DROIT_full"
-        # Mon video_id est probablement "CAMERA_DEBUT_COULOIR_DROIT"
-        # On va essayer de trouver une correspondance
-        # Base time to align all videos to a common timeline
-        # Prefer timestamp offsets when available, fallback to duration offsets.
+        
         sync_offset = 0.0
         for key, val in self.offsets_timestamp.items():
             if video_id in key:

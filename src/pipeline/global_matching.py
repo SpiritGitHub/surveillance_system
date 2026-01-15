@@ -8,6 +8,7 @@ import sys
 sys.path.append(str(Path(__file__).parents[2]))
 
 from src.reid.matcher import ReIDMatcher
+from src.utils.camera_network import CameraNetwork
 
 logger = logging.getLogger("GlobalMatching")
 
@@ -33,7 +34,9 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.5, max_embeddi
             "max_embeddings_per_track": max_embeddings_per_track,
         }
 
-    matcher = ReIDMatcher(threshold=threshold)
+    # Optional camera topology gating (improves multi-cam ReID quality).
+    camera_network = CameraNetwork.load("configs/camera_network.json")
+    matcher = ReIDMatcher(threshold=threshold, camera_network=camera_network)
     
     # 1. Load all tracks
     print(f"Loading {len(json_files)} trajectory files...")
@@ -90,7 +93,7 @@ def run_global_matching(data_dir="data/trajectories", threshold=0.5, max_embeddi
         embs = track["embeddings"][:max_embeddings_per_track]
         emb = np.mean(np.array(embs, dtype=np.float32), axis=0)
         
-        global_id = matcher.match_track(emb, track["timestamp"])
+        global_id = matcher.match_track(emb, track["timestamp"], camera_id=track.get("video_id"))
         
         # Update track in memory (O(1))
         try:

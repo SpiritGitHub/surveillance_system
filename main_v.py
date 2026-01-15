@@ -38,6 +38,28 @@ def _run_dashboard(data_dir: str = "data") -> None:
     dashboard.run()
 
 
+def _run_dashboard_with_options(
+    *,
+    data_dir: str = "data",
+    offset_source: str = "trajectory",
+    offset_file: str | None = None,
+) -> None:
+    from src.interface.dashboard_v import DashboardV
+
+    print("\n" + "=" * 70)
+    print("Lancement du Dashboard V")
+    print("=" * 70)
+    print("Chargement de l'interface synchronisée...")
+
+    dashboard = DashboardV(
+        data_dir=data_dir,
+        offset_source=offset_source,
+        offset_file=offset_file,
+    )
+    dashboard.load_resources()
+    dashboard.run()
+
+
 def main_v(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Surveillance System - Version Avancée (V)")
     parser.add_argument("--force", "-f", action="store_true", help="Forcer le retraitement complet des vidéos")
@@ -57,6 +79,22 @@ def main_v(argv: list[str] | None = None) -> None:
         help="Dossier data/ (défaut: data)",
     )
 
+    parser.add_argument(
+        "--offset-source",
+        default="trajectory",
+        choices=["trajectory", "timestamp", "duration", "custom", "none"],
+        help=(
+            "Source des offsets pour le dashboard: "
+            "trajectory (sync_offset des trajectoires), timestamp (data/camera_offsets_timestamp.json), "
+            "duration (data/camera_offsets_durree.json), custom (--offset-file), none (0 pour toutes)."
+        ),
+    )
+    parser.add_argument(
+        "--offset-file",
+        default=None,
+        help="Chemin vers un JSON d'offsets custom (utilisé si --offset-source=custom)",
+    )
+
     args = parser.parse_args(argv)
 
     print("\n" + "=" * 70)
@@ -68,7 +106,11 @@ def main_v(argv: list[str] | None = None) -> None:
 
     if not args.no_dashboard:
         try:
-            _run_dashboard(data_dir=args.data_dir)
+            _run_dashboard_with_options(
+                data_dir=args.data_dir,
+                offset_source=str(args.offset_source),
+                offset_file=str(args.offset_file) if args.offset_file else None,
+            )
         except Exception as e:
             print(f"Erreur Dashboard: {e}")
             import traceback
