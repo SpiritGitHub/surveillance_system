@@ -16,5 +16,5 @@ configs/
 oauth.txt
 .vscode/
 .comments
-doc/
+doc/PRESENTATION.md
 data/

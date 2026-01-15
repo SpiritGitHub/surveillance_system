@@ -1,112 +1,195 @@
-# Surveillance System — Détection, suivi et analyse multi-caméras
+# Surveillance System — Détection, tracking et analyse multi-caméras
 
-Ce projet transforme des vidéos multi-caméras en données structurées (trajectoires, identités globales, événements) afin de faciliter l'analyse et l'audit (qui est passé où, quand, et pendant combien de temps).
+Ce projet transforme des vidéos multi-caméras en données structurées (trajectoires, identités globales, événements) pour faciliter l'analyse et l'audit (qui est passé où, quand, et pendant combien de temps).
 
-## Fonctionnalités
+L'objectif de ce README est d'être “GitHub-friendly” : installation, lancement, structure attendue, et surtout ce qui n'est pas versionné (données/credentials/sorties).
 
-### 1) Détection multi-objets
+## Fonctionnalités (résumé)
 
-Le système détecte automatiquement :
+- Détection multi-classes (YOLOv8) : personnes, véhicules, bagages
+- Tracking par classe (DeepSORT) et export des trajectoires
+- Zones interdites (polygones) + événements d'intrusion (seuil de durée ou immédiat)
+- Ré-identification multi-cam (Re-ID) pour `person` → `global_id`
+- Synchronisation multi-cam par offsets → timeline commune `t_sync`
+- Enrichissement des événements (prev/next camera) + déduplication (zones recouvrantes)
+- Exports “database” (CSV) + rapport de run (JSON)
 
-- Personnes
-- Véhicules (voitures, motos, bus)
-- Bagages (sacs à dos, sacs à main)
+## Ce qui est versionné / ignoré (important pour GitHub)
 
-### 2) Suivi (tracking) et trajectoires
+Le dépôt est conçu pour garder le code sur GitHub tout en évitant de pousser des données lourdes/sensibles.
 
-- Suivi de chaque objet dans une vidéo (identifiants locaux + positions dans le temps).
-- Enregistrement de trajectoires exploitables (JSON/CSV).
-- Synchronisation temporelle via offsets pour aligner plusieurs caméras sur un temps commun.
+- Versionné : code (`src/`, `main.py`, `main_v.py`), `requirements.txt`, ce `README.md`
+- Ignoré par Git (`.gitignore`) :
+	- `data/` (vidéos, trajectoires, embeddings, zones, metadata…)
+	- `outputs/` (events, reports, logs…)
+	- `configs/` (fichiers de config + credentials OAuth)
+	- `doc/` (documentation interne locale)
+	- `oauth.txt`, `.env`, logs, caches…
 
-### 3) Zones et alertes
+Conséquence : si tu clones le repo depuis GitHub, tu dois (re)créer `data/` et `configs/` en local (voir sections ci-dessous).
 
-- Définition de zones interdites (polygones).
-- Détection d'intrusion selon une logique immédiate ou à seuil de durée.
+## Prérequis
 
-### 4) Ré-identification (Re-ID)
+- Windows 10/11 (le projet tourne aussi généralement sous Linux, mais ce repo est principalement utilisé sous Windows)
+- Python 3.10+ (recommandé : 3.11)
+- Accès aux vidéos `*.mp4`
 
-- Regroupement des trajectoires d'une même personne entre caméras.
-- Attribution d'un identifiant global (global_id).
+### Accélération (optionnel)
 
-### 5) Réseau de caméras (topologie)
+- GPU NVIDIA : recommandé si tu veux accélérer YOLO/ReID (PyTorch CUDA)
+- CPU only : fonctionne, mais plus lent
 
-Pour améliorer le tracking multi-caméras, le système peut utiliser une **topologie** (qui voit “avant/après” qui) pour éviter des associations ReID impossibles.
+Note : le `requirements.txt` de ce workspace contient des versions PyTorch “CUDA” (`+cu121`). Sur une machine sans CUDA, installe plutôt une version CPU de PyTorch et adapte l'installation (voir “Installation”).
 
-- Configuration : [configs/camera_network.json](configs/camera_network.json)
-- Effet : le matching global ReID est “gated” par la topologie (on ne compare pas une identité avec une caméra qui ne peut pas être atteinte).
+## Installation
 
-Le format des `edges` peut être :
+### 1) Créer un environnement virtuel
 
-- **Sans temps (recommandé si tu n'as pas de durées fiables)** : `{ "from": "CAMERA_A", "to": "CAMERA_B" }`
-- **Avec temps (optionnel)** : `{ "from": "CAMERA_A", "to": "CAMERA_B", "min_s": 3, "max_s": 120 }`
+```bash
+python -m venv venv
+venv\Scripts\activate
+python -m pip install --upgrade pip
+```
 
-Si tu ne veux pas de gating topologique, tu peux vider la liste `edges` (comportement permissif, comme avant).
+### 2) Installer les dépendances
 
-### 6) Enrichissement des événements (avant/après + déduplication)
-
-Après le global matching, le système enrichit les événements d'intrusion avec :
-
-- `global_id` (identité multi-cam)
-- `prev_camera` / `next_camera` (où la personne est vue avant/après l'infraction, basé sur `t_sync`)
-- `prev_camera_candidates` / `next_camera_candidates` (voisins possibles selon le réseau de caméras)
-
-Cas des caméras très recouvrantes (même scène / même zone) :
-
-- Une déduplication est appliquée pour éviter les doublons d'événements quand la **même zone physique** est définie sur deux caméras voisines.
-- Recommandation : donne le **même `name`** aux deux zones (dans `data/zones_interdites.json`) si elles représentent la même zone physique.
-
-## Utilisation
-
-### Étape 1 : Installation
+Option A — Machine avec CUDA (si compatible avec ton poste) :
 
 ```bash
 pip install -r requirements.txt
-# Pour le Re-ID (optionnel mais recommandé)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### Étape 2 : Vos Données
+Option B — Machine CPU only :
 
-1.  Placez vos vidéos dans `data/videos/`.
-2.  (Optionnel) Placez votre fichier de synchronisation `camera_offsets_durree.json` dans `data/`.
+1) Installer PyTorch CPU :
 
-### Étape 3 : Configuration des Zones
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
 
-Lancez l'outil visuel pour définir où sont les zones interdites :
+2) Installer le reste :
+
+```bash
+pip install -r requirements.txt
+```
+
+Si pip refuse à cause des wheels `+cu121`, remplace les lignes `torch/torchvision/torchaudio` dans `requirements.txt` par des versions CPU (ou supprime-les du fichier et installe PyTorch séparément comme ci-dessus).
+
+## Données & configuration attendues
+
+Comme `data/` et `configs/` sont ignorés par Git, voici l'arborescence minimale attendue en local :
+
+```text
+data/
+	videos/                      # fichiers .mp4
+	trajectories/                # généré par le pipeline
+	embeddings/                  # généré par le pipeline
+	camera_offsets_timestamp.json    # optionnel (préféré)
+	camera_offsets_durree.json       # optionnel (fallback)
+	zones_interdites.json            # recommandé (zones d'intrusion)
+	video_orientations.json          # optionnel (rotation par caméra)
+
+configs/
+	cameras.json                 # optionnel selon usages
+	camera_network.json          # optionnel (topologie/gating)
+	credentials.json             # optionnel (Google Drive)
+	token.json                   # généré par OAuth
+```
+
+Création rapide (Windows) :
+
+```bash
+mkdir data\videos
+mkdir data\trajectories
+mkdir outputs\events
+mkdir outputs\reports
+mkdir configs
+```
+
+### Réseau de caméras (topologie) — optionnel
+
+Le “gating” topologique sert à empêcher des associations ReID impossibles (caméras non atteignables).
+
+- Fichier (local) : `configs/camera_network.json`
+- Format d'arêtes :
+	- Sans temps : `{ "from": "CAMERA_A", "to": "CAMERA_B" }`
+	- Avec temps : `{ "from": "CAMERA_A", "to": "CAMERA_B", "min_s": 3, "max_s": 120 }`
+
+Si tu ne veux pas de gating, mets `"edges": []`.
+
+### Zones interdites (intrusions)
+
+Pour définir les zones, utilise l'outil visuel :
 
 ```bash
 python src/zones/zone_visual.py
 ```
 
-Suivez les instructions à l'écran (cliquez pour dessiner).
+Le fichier de sortie est généralement `data/zones_interdites.json`.
 
-### Étape 4 : Lancer l'Analyse
+Astuce (anti-doublons) : si deux caméras couvrent exactement la même zone physique, donne le même `name` aux zones correspondantes pour faciliter la déduplication.
+
+## Lancer le pipeline
+
+### Pipeline complet (traitement + matching + exports)
 
 ```bash
 python main.py
 ```
 
-Le système va :
+Options utiles :
 
-1.  Analyser chaque vidéo (peut prendre du temps).
-2.  Détecter, suivre et vérifier les intrusions.
-3.  À la fin, relier les personnes entre les caméras (Global Matching).
+- Retraiter toutes les vidéos :
 
-Important : même si aucune vidéo n'est à retraiter (déjà traité), `main.py` exécute tout de même la fin de chaîne (matching global, rapport, exports) tant que `data/trajectories/` existe.
+```bash
+python main.py --force
+```
 
-### Étape 5 : Résultats
+Important : même si aucune vidéo n'est à retraiter, `main.py` exécute quand même la fin de chaîne (matching global, enrichissement, rapport, exports) tant que `data/trajectories/` existe.
 
-- **Trajectoires complètes** : `data/trajectories/*.json` (contient aussi les embeddings ReID des personnes).
-- **Embeddings exportés** : `data/embeddings/<VIDEO_ID>/*.npy` + `data/embeddings/embeddings_index_<RUN_ID>.csv`.
-- **Événements (intrusions)** : `outputs/events/events_<RUN_ID>.jsonl`.
-- **Rapport examinateur** : `outputs/reports/run_report_<RUN_ID>.json` + `outputs/reports/latest.json`.
-- **Exports “database”** :
+### Version “V” (pipeline + dashboard)
+
+```bash
+python main_v.py
+```
+
+Exemples :
+
+- Retraitement complet + dashboard : `python main_v.py --force`
+- Pipeline only (sans UI) : `python main_v.py --no-dashboard`
+- Dashboard only (sans retraitement) : `python main_v.py --dashboard-only`
+- Offsets pour la synchro du dashboard :
+	- `--offset-source trajectory` (défaut)
+	- `--offset-source timestamp` (lit `data/camera_offsets_timestamp.json`)
+	- `--offset-source duration` (lit `data/camera_offsets_durree.json`)
+	- `--offset-source none`
+	- `--offset-source custom --offset-file path\\to\\offsets.json`
+
+## Sorties
+
+- Trajectoires : `data/trajectories/*.json` (inclut timestamps `t_sync` et embeddings ReID)
+- Embeddings exportés : `data/embeddings/<VIDEO_ID>/*.npy` + `data/embeddings/embeddings_index_<RUN_ID>.csv`
+- Événements : `outputs/events/events_<RUN_ID>.jsonl`
+- Rapport : `outputs/reports/run_report_<RUN_ID>.json` + `outputs/reports/latest.json`
+- Exports CSV :
 	- `database/personnes.csv`
 	- `database/evenements.csv`
 	- `database/classes.csv`
 
-#### Pourquoi certains fichiers peuvent être “vides” ?
+### Pourquoi certains fichiers peuvent être vides ?
 
-- `outputs/events/events_<RUN_ID>.jsonl` et `database/evenements.csv` peuvent être vides si **aucune intrusion** n’a été détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone, etc.).
+- Les events (`outputs/events/...`) et `database/evenements.csv` peuvent être vides si aucune intrusion n'a été détectée (zones absentes/inactives, seuil `min_duration` trop élevé, aucune personne dans une zone…).
 - `database/classes.csv` est généré à partir des trajectoires (même si 0 vidéo retraitée).
+
+## Notebooks (exploration)
+
+Les notebooks dans `notebooks/` servent à inspecter/valider les exports CSV (personnes, événements, classes, vidéos).
+
+## Sécurité & confidentialité
+
+Ce projet traite des vidéos potentiellement sensibles.
+
+- Ne versionne pas les vidéos/frames/trajectoires/embeddings sur GitHub.
+- Ne versionne pas `configs/credentials.json` et `configs/token.json`.
+- Utilise des chemins locaux ou des secrets CI si tu automatises.
 
