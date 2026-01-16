@@ -2,28 +2,28 @@
   "ZONE_1": {
     "zone_id": "ZONE_1",
     "name": "Zone Interdite 1",
-    "camera_id": "FIN_COULOIR_GAUCHE_REZ_PARTIE_1",
+    "camera_id": "DEBUT_COULOIR_DROIT",
     "polygon": [
       [
-        640,
-        340
+        143,
+        297
       ],
       [
-        698,
-        1253
+        570,
+        299
       ],
       [
-        716,
-        1248
+        599,
+        1066
       ],
       [
-        716,
-        338
+        162,
+        1041
       ]
     ],
     "description": "Zone créée au timestamp 100s",
     "active": true,
-    "area": 42942
+    "area": 326052
   },
   "ZONE_2": {
     "zone_id": "ZONE_2",
