@@ -1,8 +1,52 @@
-# Guide technique (exhaustif)
+# Guide technique (complet)
 
-Ce document décrit **le projet tel qu’il est dans ce workspace** : chaque dossier, fichier, rôle, dépendances, APIs (classes/fonctions), formats de données et le flux d’exécution “de bout en bout”.
+Ce document décrit **le projet tel qu’il est dans ce workspace** : architecture, structure, rôles des modules, formats de données, et flux d’exécution “de bout en bout”.
 
-## 0) Roadmap de lecture (étape par étape)
+Objectif : permettre de (1) lancer le pipeline de manière fiable, puis (2) comprendre précisément comment les données sont produites (trajectoires → ReID → événements → exports).
+
+## 0) Structure du projet (à ne pas oublier)
+
+### Vue d’ensemble (top-level)
+
+```text
+.
+├─ main.py                     # Orchestrateur batch end-to-end
+├─ main_v.py                   # Orchestrateur + dashboard synchronisé
+├─ requirements.txt            # Dépendances
+├─ configs/                    # Configs locales (souvent non versionnées)
+├─ data/                       # Données locales (vidéos + artefacts)
+├─ database/                   # Exports CSV
+├─ doc/                        # Documentation (ce guide, etc.)
+├─ models/                     # Poids YOLO + composants ReID
+├─ notebooks/                  # Notebooks d’analyse
+├─ outputs/                    # Événements, rapports, logs
+└─ src/                        # Code applicatif
+  ├─ alerts/                  # Intrusions: création d’événements
+  ├─ database/                # Export CSV
+  ├─ detection/               # Détection (YOLO)
+  ├─ drive/                   # Ingestion Google Drive (optionnel)
+  ├─ interface/               # Dashboard V
+  ├─ metadata/                # Gestion metadata vidéos
+  ├─ pipeline/                # Traitement vidéo + matching global
+  ├─ reid/                    # Extraction embeddings + matching
+  ├─ tracking/                # Tracking (DeepSORT)
+  ├─ utils/                   # Outils (logs, validation, rapport, enrichissement)
+  └─ zones/                   # Zones interdites + éditeur visuel
+```
+
+### Ce qui est ignoré par Git (impacts)
+
+Le projet ignore volontairement certains éléments dans `.gitignore` (pour éviter de committer du sensible / lourd). Dans ce workspace, tu peux voir ces dossiers/fichiers, mais **ils ne sont pas censés être versionnés**.
+
+Points importants :
+
+- `configs/` est ignoré (typiquement `credentials.json` / `token.json`).
+- `data/videos/`, `data/trajectories/`, `data/frames/` sont ignorés.
+- `doc/PRESENTATION.md` est ignoré.
+
+Conséquence : la reproductibilité “clonage → run” nécessite de recréer les données d’entrée (`data/videos/`) et les configs locales (`configs/`).
+
+## 1) Roadmap de lecture (étape par étape)
 
 Cette section te donne un ordre simple pour lire le code. L’idée est de comprendre le pipeline du début à la fin, sans se perdre.
 
@@ -30,7 +74,7 @@ Les réglages principaux sont l’emplacement Drive, les extensions vidéo accep
 Lis ces fichiers en premier pour comprendre comment tout s’enchaîne.
 
 - [main.py](main.py) est le lanceur principal. Il crée un `run_id`, traite les vidéos nécessaires, puis lance quand même la fin de chaîne (matching global, enrichissement, rapport, exports) si des trajectoires existent.
-- [main_v.py](main_v.py) est une variante qui lance ensuite un dashboard synchronisé.
+- [main_v.py](main_v.py) est une variante “démo” : elle exécute le pipeline (en appelant `main.py`), puis lance un dashboard synchronisé.
 
 Les options de lancement les plus utiles sont `--force`, `--log-level` et `--no-quiet-external`.
 
@@ -378,9 +422,15 @@ Rôle : version “V” avec dashboard synchronisé.
 
 Flux :
 
-1. Traite les vidéos manquantes (comme `main.py`, mais sans events per-run).
-2. Lance le global matching.
-3. Démarre l’interface [src/interface/dashboard_v.py](src/interface/dashboard_v.py).
+1. Par défaut, exécute le pipeline complet en appelant `main.py` (donc mêmes sorties : events JSONL, rapport, exports).
+2. Lance ensuite l’interface [src/interface/dashboard_v.py](src/interface/dashboard_v.py).
+
+Options utiles :
+
+- `--force` : forcer le retraitement complet.
+- `--no-dashboard` : exécuter le pipeline sans UI.
+- `--dashboard-only` : lancer uniquement le dashboard (sans retraitement/matching/export).
+- `--offset-source` / `--offset-file` : choisir la source d’offsets pour la synchronisation du dashboard.
 
 ### 5.2 `src/pipeline/`
 

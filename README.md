@@ -1,50 +1,89 @@
 # Surveillance System — Détection, tracking et analyse multi‑caméras
 
-Pipeline Python pour transformer des vidéos multi‑caméras en données structurées (trajectoires, identités globales, événements) afin de faciliter l'analyse et l'audit : qui est passé où, quand, et pendant combien de temps.
+Pipeline Python pour transformer des vidéos multi‑caméras en **données structurées** (trajectoires, identités globales, événements) afin de faciliter l’analyse et l’audit : **qui est passé où, quand, et pendant combien de temps**.
 
-Ce README vise un usage “GitHub‑friendly” : clonage, installation, configuration locale (données/credentials), lancement, sorties, et règles de confidentialité.
+Ce dépôt est pensé pour un usage “projet” : installation, exécution batch, visualisation (dashboard), artefacts inspectables (JSON/CSV), et bonnes pratiques de confidentialité.
 
 ## Sommaire
 
+- Aperçu
 - Fonctionnalités
-- Ce qui est versionné / ignoré
-- Quickstart (Windows)
-- Prérequis
-- Installation
-- Données & configuration locale
+- Structure du projet
+- Ce qui est versionné / ignoré (Git)
+- Installation (Windows)
+- Configuration & données attendues
 - Exécution
-- Sorties
+- Sorties (artefacts)
 - Notebooks
 - Dépannage
 - Sécurité & confidentialité
 
+## Aperçu
+
+- **Entrée** : vidéos `.mp4` (une par caméra) dans `data/videos/`
+- **Traitement** : YOLO (détection) → DeepSORT (tracking) → zones (intrusions) → ReID (person) → synchronisation multi‑cam (`t_sync`)
+- **Sortie** : `data/trajectories/*.json`, événements JSONL, rapport de run, exports CSV dans `database/`
+
 ## Fonctionnalités
 
-- Détection multi‑classes (YOLOv8) : personnes, véhicules, bagages
-- Tracking par classe (DeepSORT) et export des trajectoires
-- Zones interdites (polygones) + événements d'intrusion (immédiat ou seuil de durée)
-- Ré‑identification multi‑cam (Re‑ID) pour `person` → `global_id`
-- Synchronisation multi‑cam par offsets → timeline commune `t_sync`
-- Enrichissement (prev/next camera) + déduplication (zones recouvrantes)
+- Détection multi‑classes (YOLOv8)
+- Tracking **par classe** (DeepSORT) + export trajectoires JSON
+- Zones interdites (polygones) + événements d’intrusion (`intrusion_confirmed` / `intrusion_ended`)
+- Ré‑identification multi‑cam (Re‑ID) pour la classe `person` → `global_id`
+- Synchronisation multi‑cam via offsets → timeline commune `t_sync = t + offset`
+- Enrichissement d’événements (`global_id`, `prev_camera`, `next_camera`)
+- Export embeddings (fichiers `.npy` + index CSV)
 - Exports “database” (CSV) + rapport de run (JSON)
 
-## Ce qui est versionné / ignoré
+## Structure du projet
 
-Le dépôt est conçu pour garder le code sur GitHub tout en évitant de pousser des données lourdes ou sensibles.
+Arborescence (vue simplifiée) :
 
-- Versionné : code (`src/`, `main.py`, `main_v.py`), `requirements.txt`, `README.md`
-- Ignoré par Git (`.gitignore`) :
-  - `data/` (vidéos, frames, trajectoires, embeddings, zones, metadata…)
-  - `outputs/` (events, reports, logs…)
-  - `configs/` (fichiers de config + credentials OAuth)
-  - `doc/` (documentation interne locale)
-  - `oauth.txt`, `.env`, logs, caches…
+```text
+.
+├─ main.py                     # Pipeline batch end-to-end
+├─ main_v.py                   # Pipeline + dashboard synchronisé
+├─ requirements.txt            # Dépendances Python
+├─ configs/                    # Configs locales (souvent non versionnées)
+├─ data/                       # Données locales (vidéos + artefacts)
+├─ database/                   # Exports CSV “tables”
+├─ doc/                        # Documentation (guide technique, etc.)
+├─ models/                     # Poids YOLO + composants ReID
+├─ notebooks/                  # Notebooks d’analyse des CSV
+├─ outputs/                    # Événements, logs, rapports, screenshots
+└─ src/
+   ├─ alerts/                  # Gestion d’alertes/intrusions
+   ├─ database/                # Export CSV
+   ├─ detection/               # YOLO wrapper
+   ├─ drive/                   # Sync Google Drive (optionnel)
+   ├─ interface/               # Dashboard V
+   ├─ metadata/                # Metadata vidéos
+   ├─ pipeline/                # Orchestration vidéo + matching global
+   ├─ reid/                    # Extraction embeddings + matching
+   ├─ tracking/                # DeepSORT wrapper
+   ├─ utils/                   # Outils (logs, rapport, enrichissement, validation)
+   └─ zones/                   # Zones interdites + outils visuels
+```
 
-Conséquence : après clonage, tu dois recréer/peupler `data/` et `configs/` en local.
+Pour une description détaillée dossier par dossier (APIs, formats), voir : `doc/TECHNICAL_GUIDE.md`.
 
-## Quickstart (Windows)
+## Ce qui est versionné / ignoré (Git)
 
-1) Cloner
+Le dépôt évite de pousser des données lourdes/sensibles (vidéos, configs OAuth, caches). La source d’autorité est `.gitignore`.
+
+Actuellement, `.gitignore` ignore notamment :
+
+- `venv/`, `__pycache__/`, caches notebooks
+- `configs/` (souvent sensible : credentials OAuth, tokens, configs locales)
+- `oauth.txt`, `.env`, `*.log`
+- `data/videos/`, `data/trajectories/`, `data/frames/`
+- `doc/PRESENTATION.md`
+
+Conséquence : après clonage, tu devras (re)créer et peupler au minimum `data/videos/` et tes fichiers `configs/`.
+
+## Installation (Windows)
+
+### 1) Cloner
 
 ```powershell
 git clone https://github.com/SpiritGitHub/surveillance_system.git
@@ -64,7 +103,7 @@ Mettre à jour le code :
 git pull
 ```
 
-2) Créer/activer un venv
+### 2) Créer/activer un venv
 
 ```powershell
 python -m venv venv
@@ -72,13 +111,13 @@ venv\Scripts\activate
 python -m pip install --upgrade pip
 ```
 
-3) Installer les dépendances
+### 3) Installer les dépendances
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-4) Préparer l'arborescence locale (minimum)
+### 4) Préparer l'arborescence locale (minimum)
 
 ```powershell
 mkdir data\videos
@@ -88,7 +127,7 @@ mkdir outputs\reports
 mkdir configs
 ```
 
-5) Ajouter des vidéos `*.mp4` dans `data\videos\`, puis lancer
+### 5) Ajouter des vidéos dans `data\videos\`, puis lancer
 
 ```powershell
 python main.py
@@ -105,7 +144,7 @@ python main.py
 - GPU NVIDIA : recommandé pour accélérer YOLO/ReID (PyTorch CUDA)
 - CPU only : fonctionne, mais plus lent
 
-Note : `requirements.txt` contient des versions PyTorch CUDA (`+cu121`). Sur une machine sans CUDA, adapte l'installation (voir section suivante).
+Note : `requirements.txt` contient des wheels PyTorch CUDA (`+cu121`). Sur une machine sans CUDA, adapte l’installation (voir ci‑dessous).
 
 ## Installation
 
@@ -139,28 +178,34 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install -r requirements.txt
 ```
 
-Si pip refuse à cause des wheels `+cu121`, remplace/supprime les lignes `torch/torchvision/torchaudio` dans `requirements.txt` et installe PyTorch séparément (comme ci‑dessus).
+Si `pip` refuse à cause des wheels `+cu121`, installe PyTorch séparément (CPU), puis installe le reste (ou supprime temporairement les lignes `torch*` du fichier).
 
-## Données & configuration locale
+## Configuration & données attendues
 
-Comme `data/` et `configs/` sont ignorés par Git, voici l'arborescence minimale attendue en local :
+### Arborescence locale minimale
+
+Comme certaines données/configs sont ignorées par Git, voici l’arborescence minimale attendue en local :
 
 ```text
 data/
-	videos/                          # fichiers .mp4
-	trajectories/                    # généré par le pipeline
-	embeddings/                      # généré par le pipeline
-	camera_offsets_timestamp.json    # optionnel (préféré)
-	camera_offsets_durree.json       # optionnel (fallback)
-	zones_interdites.json            # recommandé (zones d'intrusion)
-	video_orientations.json          # optionnel (rotation par caméra)
+  videos/                          # fichiers .mp4 (entrée)
+  trajectories/                    # généré (trajectoires JSON)
+  embeddings/                      # généré (embeddings .npy + index CSV)
+  camera_offsets_timestamp.json    # optionnel (préféré)
+  camera_offsets_durree.json       # optionnel (fallback)
+  zones_interdites.json            # recommandé (zones d’intrusion)
+  video_orientations.json          # généré/optionnel (rotation par caméra)
 
 configs/
-	cameras.json                     # optionnel selon usages
-	camera_network.json              # optionnel (topologie/gating)
-	credentials.json                 # optionnel (Google Drive)
-	token.json                       # généré par OAuth
+  camera_network.json              # optionnel (topologie/gating)
+  credentials.json                 # optionnel (Google Drive)
+  token.json                       # généré par OAuth
 ```
+
+### Identifiants et conventions
+
+- `video_id` = nom de fichier sans extension (ex: `CAMERA_HALL_PORTE_ENTREE` pour `CAMERA_HALL_PORTE_ENTREE.mp4`).
+- Les trajectoires sont écrites dans `data/trajectories/<video_id>.json`.
 
 ### Modèles
 
@@ -205,7 +250,7 @@ Options utiles :
 python main.py --force
 ```
 
-Important : même si aucune vidéo n'est à retraiter, `main.py` exécute la fin de chaîne (matching global, enrichissement, rapport, exports) tant que `data/trajectories/` existe.
+Important : même si aucune vidéo n’est à retraiter, `main.py` exécute la fin de chaîne (matching global, enrichissement, rapport, exports) tant que `data/trajectories/` contient des JSON.
 
 ### Version “V” (pipeline + dashboard)
 
@@ -221,12 +266,11 @@ Exemples :
 - Offsets pour la synchro du dashboard :
   - `--offset-source timestamp` (défaut, lit `data/camera_offsets_timestamp.json`)
   - `--offset-source trajectory` (utilise `sync_offset` des trajectoires)
-  - `--offset-source timestamp` (lit `data/camera_offsets_timestamp.json`)
   - `--offset-source duration` (lit `data/camera_offsets_durree.json`)
   - `--offset-source none`
   - `--offset-source custom --offset-file path\\to\\offsets.json`
 
-## Sorties
+## Sorties (artefacts)
 
 - Trajectoires : `data/trajectories/*.json` (inclut `t_sync` + embeddings Re‑ID)
 - Embeddings exportés : `data/embeddings/<VIDEO_ID>/*.npy` + `data/embeddings/embeddings_index_<RUN_ID>.csv`
@@ -236,6 +280,7 @@ Exemples :
   - `database/personnes.csv`
   - `database/evenements.csv`
   - `database/classes.csv`
+  - `database/videos.csv` (si export activé)
 
 ### Fichiers vides : cas fréquents
 
@@ -248,15 +293,16 @@ Les notebooks dans `notebooks/` servent à inspecter/valider les exports CSV (pe
 
 ## Dépannage
 
-- Erreur d'installation PyTorch / CUDA : utilise l'installation CPU (section “Installation”), ou aligne les versions CUDA/PyTorch avec ton poste.
+- Erreur d’installation PyTorch / CUDA : utilise l’installation CPU (section “Installation”), ou aligne CUDA/PyTorch avec ton poste.
 - “Aucune vidéo retraitée” : vérifie `data/videos/` et/ou utilise `--force`.
-- Pas d'événements : vérifie que `data/zones_interdites.json` existe et que les seuils/zones sont cohérents.
+- Pas d’événements : vérifie que `data/zones_interdites.json` existe, que `active=true`, et que la zone couvre réellement la scène (orientation comprise).
 
 ## Sécurité & confidentialité
 
 Ce projet traite des vidéos potentiellement sensibles.
 
-- Ne versionne pas les vidéos/frames/trajectoires/embeddings sur GitHub.
+- Ne versionne pas des données sensibles (vidéos, frames, trajectoires, embeddings).
 - Ne versionne pas `configs/credentials.json` et `configs/token.json`.
-- Si tu automatises (CI), utilise des secrets et des chemins locaux/volumes dédiés.
+- Pour toute automatisation (CI), utilise des secrets et des volumes dédiés.
+
 
