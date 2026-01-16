@@ -1,7 +1,6 @@
 venv/
 __pycache__/
 *.pyc
-outputs/
 .env
 .DS_Store
 .ipynb_checkpoints/
@@ -17,4 +16,6 @@ oauth.txt
 .vscode/
 .comments
 doc/PRESENTATION.md
-data/
+data/videos/
+data/trajectories/
+data/frames/

@@ -2,23 +2,12 @@ import sys
 from pathlib import Path
 import argparse
 
-
-# Ensure project root is on sys.path (so `import src...` and `import main` work reliably)
 PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _run_full_pipeline(force: bool) -> None:
-    """Run the same end-to-end pipeline as `main.py`.
-
-    This includes (when trajectories exist):
-    - global matching (Re-ID)
-    - events reanalysis if needed
-    - event enrichment (global_id + prev/next camera)
-    - run report JSON
-    - database CSV exports
-    """
 
     from main import main as run_main
 
@@ -41,7 +30,7 @@ def _run_dashboard(data_dir: str = "data") -> None:
 def _run_dashboard_with_options(
     *,
     data_dir: str = "data",
-    offset_source: str = "trajectory",
+    offset_source: str = "timestamp",
     offset_file: str | None = None,
 ) -> None:
     from src.interface.dashboard_v import DashboardV
@@ -81,7 +70,7 @@ def main_v(argv: list[str] | None = None) -> None:
 
     parser.add_argument(
         "--offset-source",
-        default="trajectory",
+        default="timestamp",
         choices=["trajectory", "timestamp", "duration", "custom", "none"],
         help=(
             "Source des offsets pour le dashboard: "

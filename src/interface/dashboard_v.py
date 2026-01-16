@@ -4,6 +4,13 @@ import time
 import numpy as np
 from pathlib import Path
 import math
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from src.pipeline.global_analysis_v import GlobalAnalyzer
 
 
@@ -55,7 +62,7 @@ class DashboardV:
         self,
         data_dir="data",
         *,
-        offset_source: str = "trajectory",
+        offset_source: str = "timestamp",
         offset_file: str | None = None,
     ):
         self.data_dir = Path(data_dir)

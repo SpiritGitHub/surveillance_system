@@ -1,0 +1,96 @@
+{
+  "run": {
+    "run_id": "20260112_203440",
+    "force_reprocess": false,
+    "videos_total": 0,
+    "videos_success": 0,
+    "videos_errors": 0,
+    "total_time_sec": 0.0,
+    "avg_time_sec": null,
+    "trajectories_dir": "data/trajectories",
+    "events_file": "outputs\\events\\events_20260112_203440.jsonl"
+  },
+  "videos": {
+    "count": 0,
+    "per_video": {},
+    "summary": {
+      "frames_processed_total": 0,
+      "total_detections": 0,
+      "total_tracks": 0,
+      "unique_tracks_sum_by_class": {}
+    }
+  },
+  "top_classes": {
+    "most_tracked_class": null,
+    "totals_unique_tracks_by_class": {},
+    "avg_unique_tracks_by_class": {},
+    "top5_by_unique_tracks": []
+  },
+  "events": {
+    "path": "outputs/events/events_20260112_203440.jsonl",
+    "summary": {
+      "total": 0,
+      "by_type": {},
+      "by_class": {},
+      "by_zone": {},
+      "by_video": {}
+    }
+  },
+  "global_matching": {
+    "trajectory_files": 11,
+    "tracks_with_embeddings": 1137,
+    "unique_identities": 19,
+    "files_updated": 11,
+    "threshold": 0.5,
+    "max_embeddings_per_track": 5
+  },
+  "global_ids": {
+    "per_video": {
+      "CAMERA_DEBUT_COULOIR_DROIT": 8,
+      "CAMERA_DEVANTURE_PORTE_ENTREE": 10,
+      "CAMERA_DEVANTURE_SOUS_ARBRE": 7,
+      "CAMERA_ESCALIER_DEBUT_COULOIR_GAUCHE": 8,
+      "CAMERA_FIN_COULOIR_DROIT": 8,
+      "CAMERA_FIN_COULOIR_GAUCHE_ETAGE1": 4,
+      "CAMERA_FIN_COULOIR_GAUCHE_REZ_PARTIE_1": 4,
+      "CAMERA_FIN_COULOIR_GAUCHE_REZ_PARTIE_2": 5,
+      "CAMERA_HALL_PORTE_DROITE": 5,
+      "CAMERA_HALL_PORTE_ENTREE": 6,
+      "CAMERA_HALL_PORTE_GAUCHE": 8
+    },
+    "total_unique_global_ids": 19
+  },
+  "embeddings_export": {
+    "out_dir": "data/embeddings",
+    "index_csv": "data/embeddings/embeddings_index_20260112_203440.csv",
+    "tracks_exported": 1137,
+    "files_written": 1137,
+    "class_filter": "person",
+    "mode": "mean",
+    "max_embeddings_per_track": 5
+  },
+  "events_enrichment": {
+    "events_total": 0,
+    "events_enriched": 0,
+    "events_with_global_id": 0,
+    "events_file": "outputs/events/events_20260112_203440.jsonl",
+    "trajectories_dir": "data/trajectories"
+  },
+  "database_export": {
+    "personnes": {
+      "output": "database/personnes.csv",
+      "rows": 39,
+      "unique_global_persons": 19
+    },
+    "evenements": {
+      "output": "database/evenements.csv",
+      "rows_appended": 0,
+      "events_file": "outputs/events/events_20260112_203440.jsonl"
+    },
+    "classes": {
+      "output": "database/classes.csv",
+      "rows": 42,
+      "source": "trajectories"
+    }
+  }
+}

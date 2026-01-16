@@ -1,0 +1,54 @@
+{
+  "ZONE_1": {
+    "zone_id": "ZONE_1",
+    "name": "Zone Interdite 1",
+    "camera_id": "FIN_COULOIR_GAUCHE_REZ_PARTIE_1",
+    "polygon": [
+      [
+        640,
+        340
+      ],
+      [
+        698,
+        1253
+      ],
+      [
+        716,
+        1248
+      ],
+      [
+        716,
+        338
+      ]
+    ],
+    "description": "Zone créée au timestamp 100s",
+    "active": true,
+    "area": 42942
+  },
+  "ZONE_2": {
+    "zone_id": "ZONE_2",
+    "name": "Zone Interdite 2",
+    "camera_id": "FIN_COULOIR_GAUCHE_REZ_PARTIE_2",
+    "polygon": [
+      [
+        611,
+        328
+      ],
+      [
+        717,
+        328
+      ],
+      [
+        718,
+        1222
+      ],
+      [
+        634,
+        1229
+      ]
+    ],
+    "description": "Zone créée au timestamp 100s",
+    "active": true,
+    "area": 85304
+  }
+}

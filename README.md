@@ -219,7 +219,8 @@ Exemples :
 - Pipeline only (sans UI) : `python main_v.py --no-dashboard`
 - Dashboard only (sans retraitement) : `python main_v.py --dashboard-only`
 - Offsets pour la synchro du dashboard :
-  - `--offset-source trajectory` (défaut)
+  - `--offset-source timestamp` (défaut, lit `data/camera_offsets_timestamp.json`)
+  - `--offset-source trajectory` (utilise `sync_offset` des trajectoires)
   - `--offset-source timestamp` (lit `data/camera_offsets_timestamp.json`)
   - `--offset-source duration` (lit `data/camera_offsets_durree.json`)
   - `--offset-source none`
